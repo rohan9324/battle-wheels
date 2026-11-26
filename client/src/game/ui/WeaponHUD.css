@@ -1,0 +1,183 @@
+/* ==========================================
+   COMPACT WEAPON HUD
+========================================== */
+
+.weapon-hud {
+    position: absolute;
+
+    bottom: 15px;
+    right: 15px;
+
+    z-index: 100;
+
+    width: 165px;
+    padding: 10px;
+
+    box-sizing: border-box;
+
+    background: linear-gradient(
+        145deg,
+        rgba(15, 20, 30, 0.88),
+        rgba(25, 32, 45, 0.82)
+    );
+
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-left: 3px solid var(--weapon-color);
+
+    border-radius: 7px;
+
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+
+    color: #ffffff;
+
+    pointer-events: none;
+    user-select: none;
+}
+
+/* CURRENT WEAPON LABEL */
+
+.weapon-hud-label {
+    color: #a6afbf;
+
+    font-size: 8px;
+    font-weight: 800;
+
+    letter-spacing: 1px;
+}
+
+/* WEAPON NAME */
+
+.weapon-hud-name {
+    margin-top: 4px;
+    margin-bottom: 9px;
+
+    color: var(--weapon-color);
+
+    font-size: 14px;
+    font-weight: 900;
+
+    overflow-wrap: anywhere;
+}
+
+/* AMMO INFORMATION */
+
+.weapon-ammo-row {
+    display: flex;
+
+    justify-content: space-between;
+    align-items: center;
+
+    font-size: 9px;
+    font-weight: 700;
+}
+
+.weapon-ammo-row strong {
+    font-size: 12px;
+}
+
+/* AMMO PROGRESS BAR */
+
+.weapon-ammo-track {
+    width: 100%;
+    height: 4px;
+
+    margin-top: 5px;
+
+    background: rgba(255, 255, 255, 0.12);
+
+    border-radius: 4px;
+
+    overflow: hidden;
+}
+
+.weapon-ammo-fill {
+    height: 100%;
+
+    background: var(--weapon-color);
+
+    border-radius: 4px;
+
+    transition: width 0.15s ease;
+}
+
+/* WEAPON CONTROLS */
+
+.weapon-hud-hint {
+    margin-top: 7px;
+
+    color: #b9c1cf;
+
+    font-size: 8px;
+    font-weight: 700;
+
+    letter-spacing: 0.4px;
+}
+
+/* ==========================================
+   WEAPON PICKUP NOTIFICATION
+========================================== */
+
+.weapon-pickup-message {
+    position: absolute;
+
+    top: 100px;
+    left: 50%;
+
+    transform: translateX(-50%);
+
+    z-index: 200;
+
+    min-width: 140px;
+    max-width: 220px;
+
+    padding: 7px 12px;
+
+    text-align: center;
+
+    background: rgba(15, 20, 30, 0.85);
+
+    border: 1px solid #ffd54a;
+    border-radius: 6px;
+
+    box-shadow: 0 0 12px rgba(255, 213, 74, 0.2);
+
+    pointer-events: none;
+
+    animation: weaponPickup 0.25s ease-out;
+}
+
+.weapon-pickup-message span {
+    display: block;
+
+    color: #ffd54a;
+
+    font-size: 8px;
+    font-weight: 900;
+
+    letter-spacing: 1px;
+}
+
+.weapon-pickup-message strong {
+    display: block;
+
+    margin-top: 4px;
+
+    color: #ffffff;
+
+    font-size: 13px;
+    font-weight: 800;
+}
+
+/* PICKUP ANIMATION */
+
+@keyframes weaponPickup {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, 0);
+    }
+}

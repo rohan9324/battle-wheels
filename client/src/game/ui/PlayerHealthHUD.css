@@ -1,0 +1,107 @@
+.bw-player-health {
+    position: absolute;
+    top: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+
+    width: 310px;
+    padding: 12px 16px;
+
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    background: rgba(12, 17, 26, 0.92);
+
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 12px;
+
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.35);
+
+    z-index: 150;
+
+    pointer-events: none;
+    user-select: none;
+}
+
+.bw-health-icon {
+    width: 38px;
+    height: 38px;
+    flex-shrink: 0;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    background: rgba(255, 53, 53, 0.12);
+    color: #ff4545;
+
+    border-radius: 10px;
+}
+
+.bw-health-icon svg {
+    width: 25px;
+    height: 25px;
+}
+
+.bw-health-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.bw-health-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    margin-bottom: 8px;
+
+    color: #ffffff;
+
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 1px;
+}
+
+.bw-health-header strong {
+    font-size: 12px;
+    letter-spacing: 0;
+}
+
+.bw-health-track {
+    width: 100%;
+    height: 12px;
+
+    background: #303744;
+
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.bw-health-fill {
+    height: 100%;
+
+    border-radius: 20px;
+
+    transition:
+        width 0.15s ease,
+        background 0.2s ease;
+}
+
+@media (max-width: 768px) {
+
+    .bw-player-health {
+        top: 12px;
+        width: 220px;
+        padding: 8px;
+    }
+
+    .bw-health-header {
+        font-size: 9px;
+    }
+
+    .bw-health-icon {
+        width: 28px;
+        height: 28px;
+    }
+}

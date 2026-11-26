@@ -13,10 +13,7 @@ body,
 }
 
 body {
-    font-family: Arial, sans-serif;
-    background: #000;
-}
-
-canvas {
-    display: block;
+    font-family: Arial, Helvetica, sans-serif;
+    background: #000000;
+    overscroll-behavior: none;
 }

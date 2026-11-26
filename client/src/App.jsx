@@ -1,14 +1,31 @@
-import GameScene from "./game/GameScene";
+import {
+    GameProvider,
+    useGame
+} from "./context/GameContext";
+
+import Dashboard from "./pages/Dashboard";
+import GamePage from "./pages/GamePage";
+
 import "./App.css";
 
-export default function App() {
-    return (
-        <div className="game-container">
-            <GameScene />
+function AppContent() {
 
-            <div className="game-title">
-                BATTLE WHEELS
-            </div>
-        </div>
+    const { screen } = useGame();
+
+    if (screen === "game") {
+        return <GamePage />;
+    }
+
+    return <Dashboard />;
+}
+
+export default function App() {
+
+    return (
+        <GameProvider>
+
+            <AppContent />
+
+        </GameProvider>
     );
 }

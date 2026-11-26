@@ -1,0 +1,135 @@
+/* ==========================================
+   COMPACT MINI MAP CONTAINER
+========================================== */
+
+.minimap-container {
+
+    position: absolute;
+
+    top: 10px;
+    right: 15px;
+
+    z-index: 100;
+
+    display: flex;
+
+    flex-direction: column;
+
+    align-items: center;
+
+    pointer-events: none;
+
+    user-select: none;
+}
+
+/* ==========================================
+   MINI MAP FRAME
+========================================== */
+
+.minimap-circle {
+
+    width: 125px;
+
+    height: 125px;
+
+    box-sizing: border-box;
+
+    border-radius: 10px;
+
+    overflow: hidden;
+
+    border: 2px solid rgba(255, 255, 255, 0.9);
+
+    background: #66864b;
+
+    box-shadow:
+
+        0 3px 12px rgba(0, 0, 0, 0.45),
+
+        0 0 0 3px rgba(0, 0, 0, 0.2);
+}
+
+/* ==========================================
+   MINI MAP CANVAS
+========================================== */
+
+.minimap-circle canvas {
+
+    width: 100%;
+
+    height: 100%;
+
+    display: block;
+}
+
+/* ==========================================
+   NORTH DIRECTION
+========================================== */
+
+.minimap-compass {
+
+    color: #ffffff;
+
+    font-size: 10px;
+
+    font-weight: 900;
+
+    margin-bottom: 3px;
+
+    text-shadow:
+
+        0 2px 4px #000000;
+}
+
+/* ==========================================
+   MAP NAME
+========================================== */
+
+.minimap-label {
+
+    margin-top: 5px;
+
+    padding: 4px 8px;
+
+    background: rgba(10, 15, 20, 0.85);
+
+    border: 1px solid rgba(255, 255, 255, 0.15);
+
+    border-radius: 4px;
+
+    color: #ffffff;
+
+    font-size: 8px;
+
+    font-weight: 800;
+
+    letter-spacing: 0.8px;
+
+    white-space: nowrap;
+}
+
+/* ==========================================
+   SMALL SCREEN SUPPORT
+========================================== */
+
+@media (max-width: 768px) {
+
+    .minimap-container {
+
+        top: 8px;
+
+        right: 10px;
+    }
+
+    .minimap-circle {
+
+        width: 105px;
+
+        height: 105px;
+    }
+
+    .minimap-label {
+
+        font-size: 7px;
+    }
+}
