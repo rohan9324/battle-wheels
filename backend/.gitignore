@@ -1,0 +1,19 @@
+# Private database credentials
+/config/config.local.php
+/config/config.production.php
+
+# Environment files
+.env
+.env.*
+
+# Logs
+/logs/*
+*.log
+
+# Temporary files
+*.tmp
+*.bak
+
+# System files
+.DS_Store
+Thumbs.db
