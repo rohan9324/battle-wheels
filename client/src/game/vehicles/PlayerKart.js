@@ -4,8 +4,6 @@ import { useFrame } from "@react-three/fiber";
 
 import * as THREE from "three";
 
-import { ARENA_CONFIG } from "../maps/ArenaConfig";
-
 import { useGame } from "../../context/GameContext";
 
 import FollowCamera from "../camera/FollowCamera";
@@ -29,8 +27,7 @@ import {
 
 import {
     resolveKartMovement,
-    isKartBlocked,
-    isOtherKartBlocked,
+    isKartRotationBlocked,
     KART_COLLISION_CONFIG,
 } from "../physics/KartCollision";
 
@@ -46,7 +43,6 @@ import matchState from "../match/MatchState";
 // ==========================================
 
 const SETTINGS = {
-
     maxSpeed: 24,
 
     reverseSpeed: 8,
@@ -67,16 +63,11 @@ const SETTINGS = {
 
     driftGrip: 2.5,
 
-    get mapLimit() {
-        return ARENA_CONFIG.movementLimit;
-    },
-
     collisionSpeedLoss: 0.35,
 
     collisionRadius: KART_COLLISION_CONFIG.radius,
 
     spawnProtectionDuration: 5000,
-
 };
 
 // ==========================================
@@ -86,13 +77,9 @@ const SETTINGS = {
 export default function PlayerKart() {
 
     const {
-
         selectedKart,
-
         selectedDriver,
-
         settings,
-
     } = useGame();
 
     const kartRef = useRef();
@@ -104,21 +91,15 @@ export default function PlayerKart() {
     const heading = useRef(0);
 
     const velocity = useRef(
-
         new THREE.Vector3()
-
     );
 
     const direction = useRef(
-
         new THREE.Vector3()
-
     );
 
     const targetVelocity = useRef(
-
         new THREE.Vector3()
-
     );
 
     // ======================================
@@ -142,22 +123,15 @@ export default function PlayerKart() {
 
     function clearKeyboardInputs() {
 
-        Object.keys(keys.current).forEach(
+        Object.keys(keys.current).forEach((key) => {
 
-            (key) => {
-
-                if (
-
-                    typeof keys.current[key] ===
-
-                    "boolean"
-
-                ) {
-
-                    keys.current[key] = false;
-                }
+            if (
+                typeof keys.current[key] === "boolean"
+            ) {
+                keys.current[key] = false;
             }
-        );
+
+        });
     }
 
     // ======================================
@@ -167,19 +141,15 @@ export default function PlayerKart() {
     useEffect(() => {
 
         Object.assign(
-
             playerState,
 
             createEntity({
-
                 id: "player",
 
                 name: settings.playerName || "Player",
 
                 isBot: false,
-
             })
-
         );
 
         // RESET OLD SPECIAL WEAPON STATUS
@@ -193,9 +163,7 @@ export default function PlayerKart() {
         // FIVE-SECOND INITIAL SPAWN PROTECTION
 
         playerState.protectedUntil =
-
             performance.now() +
-
             SETTINGS.spawnProtectionDuration;
 
         stopMovement();
@@ -218,11 +186,8 @@ export default function PlayerKart() {
             clearEntityStatus(playerState);
 
             unregisterEntity(
-
                 playerState.id,
-
                 playerState
-
             );
 
             playerState.object = null;
@@ -241,87 +206,60 @@ export default function PlayerKart() {
             // MATCH MUST BE RUNNING
 
             if (matchState.status !== "playing") {
-
                 return;
             }
 
             // PLAYER MUST BE ELIMINATED
 
             if (playerState.alive) {
-
                 return;
             }
 
             // IGNORE HELD KEYBOARD KEYS
 
             if (event.repeat) {
-
                 return;
             }
 
             // WAIT FOR RESPAWN COUNTDOWN
 
             if (
-
                 performance.now() <
-
                 playerState.respawnAt
-
             ) {
-
                 return;
             }
 
             // IGNORE BROWSER SHORTCUTS
 
             if (
-
                 event.ctrlKey ||
-
                 event.altKey ||
-
                 event.metaKey
-
             ) {
-
                 return;
             }
 
             if (
-
                 [
-
                     "Escape",
-
                     "Tab",
-
                     "F5",
-
                     "F11",
-
                     "F12",
-
                 ].includes(event.key)
-
             ) {
-
                 return;
             }
 
             // IGNORE TYPING INSIDE FORM FIELDS
 
             if (
-
                 event.target instanceof HTMLElement &&
-
                 event.target.closest(
-
                     "input, textarea, button, select, [contenteditable]"
-
                 )
-
             ) {
-
                 return;
             }
 
@@ -331,21 +269,15 @@ export default function PlayerKart() {
         }
 
         window.addEventListener(
-
             "keydown",
-
             handleRespawnKey
-
         );
 
         return () => {
 
             window.removeEventListener(
-
                 "keydown",
-
                 handleRespawnKey
-
             );
         };
 
@@ -386,64 +318,45 @@ export default function PlayerKart() {
 
             stopMovement();
 
-            // REMOVE NEGATIVE STATUS EFFECTS
-
             clearEntityStatus(playerState);
 
             playerState.maceUntil = 0;
-
-            // KEEP DESTROYED KART HIDDEN
 
             kart.visible = false;
 
             // WAIT FOR MANUAL RESPAWN REQUEST
 
             if (!playerState.respawnRequested) {
-
                 return;
             }
 
             const respawned =
-
                 respawnEntity(playerState);
 
             if (respawned) {
-
-                // RESET ALL SPECIAL WEAPON EFFECTS
 
                 clearEntityStatus(playerState);
 
                 playerState.maceUntil = 0;
 
                 heading.current =
-
                     playerState.rotation;
 
                 stopMovement();
 
                 kart.position.set(
-
                     playerState.x,
-
                     0,
-
                     playerState.z
-
                 );
 
                 kart.rotation.set(
-
                     0,
-
                     playerState.rotation,
-
                     0
-
                 );
 
                 kart.visible = true;
-
-                // CLEAR PREVIOUSLY HELD CONTROLS
 
                 clearKeyboardInputs();
             }
@@ -456,7 +369,6 @@ export default function PlayerKart() {
         // ==================================
 
         const movementMultiplier =
-
             getMovementMultiplier(playerState);
 
         // ==================================
@@ -465,15 +377,9 @@ export default function PlayerKart() {
 
         if (movementMultiplier <= 0) {
 
-            // COMPLETELY STOP THE KART
-
             stopMovement();
 
-            // PREVENT RESET DURING STUN
-
             input.reset = false;
-
-            // KEEP CURRENT POSITION AND ROTATION
 
             playerState.x = kart.position.x;
 
@@ -489,27 +395,19 @@ export default function PlayerKart() {
         // ==================================
 
         const effectiveMaxSpeed =
-
             SETTINGS.maxSpeed *
-
             movementMultiplier;
 
         const effectiveReverseSpeed =
-
             SETTINGS.reverseSpeed *
-
             movementMultiplier;
 
         const effectiveAcceleration =
-
             SETTINGS.acceleration *
-
             movementMultiplier;
 
         const effectiveReverseAcceleration =
-
             SETTINGS.reverseAcceleration *
-
             movementMultiplier;
 
         // ==================================
@@ -524,51 +422,29 @@ export default function PlayerKart() {
 
             const resetRotation = 0;
 
-            const mapBlocked = isKartBlocked(
+            // CHECK ACTUAL RECTANGULAR KART BODY
+            // AGAINST MAP OBJECTS AND OTHER KARTS
 
-                resetX,
+            const resetBlocked =
+                isKartRotationBlocked(
+                    resetX,
+                    resetZ,
+                    playerState.id,
+                    resetRotation
+                );
 
-                resetZ,
-
-                SETTINGS.collisionRadius
-
-            );
-
-            const kartBlocked = isOtherKartBlocked(
-
-                resetX,
-
-                resetZ,
-
-                playerState.id,
-
-                resetRotation
-
-            );
-
-            // DO NOT RESET INTO ANOTHER KART
-            // OR A SOLID MAP OBSTACLE
-
-            if (!mapBlocked && !kartBlocked) {
+            if (!resetBlocked) {
 
                 kart.position.set(
-
                     resetX,
-
                     0,
-
                     resetZ
-
                 );
 
                 kart.rotation.set(
-
                     0,
-
                     resetRotation,
-
                     0
-
                 );
 
                 stopMovement();
@@ -582,8 +458,6 @@ export default function PlayerKart() {
                 playerState.rotation = resetRotation;
             }
 
-            // PREVENT REPEATED RESET
-
             input.reset = false;
 
             return;
@@ -594,37 +468,25 @@ export default function PlayerKart() {
         // ==================================
 
         if (
-
             input.forward &&
-
             !input.backward
-
         ) {
 
             const acceleration =
-
                 speed.current < 0
-
                     ? SETTINGS.braking
-
                     : effectiveAcceleration;
 
             speed.current += acceleration * dt;
 
         } else if (
-
             input.backward &&
-
             !input.forward
-
         ) {
 
             const acceleration =
-
                 speed.current > 0
-
                     ? SETTINGS.braking
-
                     : effectiveReverseAcceleration;
 
             speed.current -= acceleration * dt;
@@ -632,27 +494,20 @@ export default function PlayerKart() {
         } else {
 
             const friction =
-
                 SETTINGS.friction * dt;
 
             if (speed.current > 0) {
 
                 speed.current = Math.max(
-
                     0,
-
                     speed.current - friction
-
                 );
 
             } else {
 
                 speed.current = Math.min(
-
                     0,
-
                     speed.current + friction
-
                 );
             }
         }
@@ -662,13 +517,9 @@ export default function PlayerKart() {
         // ==================================
 
         speed.current = THREE.MathUtils.clamp(
-
             speed.current,
-
             -effectiveReverseSpeed,
-
             effectiveMaxSpeed
-
         );
 
         // ==================================
@@ -682,63 +533,68 @@ export default function PlayerKart() {
         if (input.right) steering -= 1;
 
         const isDrifting =
-
             input.drift &&
-
             Math.abs(speed.current) > 5;
 
         const steeringSpeed = isDrifting
-
             ? SETTINGS.driftSteering
-
             : SETTINGS.steeringSpeed;
 
         const steeringFactor = Math.min(
-
             Math.abs(speed.current) / 5,
-
             1
-
         );
 
         // ==================================
-        // SAFE KART ROTATION
+        // ACCURATE AND SAFE KART ROTATION
         // ==================================
 
-        if (Math.abs(speed.current) > 0.1) {
+        if (
+            Math.abs(speed.current) > 0.1 &&
+            steering !== 0
+        ) {
 
-            const nextHeading =
-
-                heading.current +
-
+            const rotationAmount =
                 steering *
-
                 steeringSpeed *
-
                 steeringFactor *
-
                 Math.sign(speed.current) *
-
                 dt;
 
-            // PREVENT KART ROTATION FROM
-            // ENTERING ANOTHER KART
+            // Divide rotation into small steps.
+            // Prevent kart corners from entering
+            // nearby objects while turning.
 
-            const rotationBlocked =
+            const rotationSteps = Math.max(
+                1,
+                Math.ceil(
+                    Math.abs(rotationAmount) / 0.025
+                )
+            );
 
-                isOtherKartBlocked(
+            const rotationStep =
+                rotationAmount / rotationSteps;
 
-                    kart.position.x,
+            for (
+                let index = 0;
+                index < rotationSteps;
+                index++
+            ) {
 
-                    kart.position.z,
+                const nextHeading =
+                    heading.current + rotationStep;
 
-                    playerState.id,
+                const rotationBlocked =
+                    isKartRotationBlocked(
+                        kart.position.x,
+                        kart.position.z,
+                        playerState.id,
+                        nextHeading
+                    );
 
-                    nextHeading
-
-                );
-
-            if (!rotationBlocked) {
+                if (rotationBlocked) {
+                    break;
+                }
 
                 heading.current = nextHeading;
             }
@@ -751,19 +607,13 @@ export default function PlayerKart() {
         // ==================================
 
         direction.current.set(
-
             -Math.sin(heading.current),
-
             0,
-
             -Math.cos(heading.current)
-
         );
 
         targetVelocity.current
-
             .copy(direction.current)
-
             .multiplyScalar(speed.current);
 
         // ==================================
@@ -771,57 +621,38 @@ export default function PlayerKart() {
         // ==================================
 
         const grip = isDrifting
-
             ? SETTINGS.driftGrip
-
             : SETTINGS.normalGrip;
 
         const smoothing =
-
             1 - Math.exp(-grip * dt);
 
         velocity.current.lerp(
-
             targetVelocity.current,
-
             smoothing
-
         );
 
         // ==================================
         // ENFORCE ICE ROCKET SPEED LIMIT
         // ==================================
 
-        // Existing momentum must also be limited.
-        // Otherwise the kart may continue moving
-        // at normal speed after an ice rocket hit.
-
         if (movementMultiplier < 1) {
 
             const currentVelocity =
-
                 velocity.current.length();
 
             const allowedSpeed =
-
                 speed.current < 0
-
                     ? effectiveReverseSpeed
-
                     : effectiveMaxSpeed;
 
             if (
-
                 currentVelocity > allowedSpeed &&
-
                 currentVelocity > 0.000001
-
             ) {
 
                 velocity.current.multiplyScalar(
-
                     allowedSpeed / currentVelocity
-
                 );
             }
         }
@@ -839,33 +670,23 @@ export default function PlayerKart() {
         // ==================================
 
         const targetX =
-
             currentX + velocity.current.x * dt;
 
         const targetZ =
-
             currentZ + velocity.current.z * dt;
 
         // ==================================
-        // COMMON MAP AND KART COLLISION
+        // ACCURATE RECTANGULAR COLLISION
         // ==================================
 
         const movement = resolveKartMovement(
-
             currentX,
-
             currentZ,
-
             targetX,
-
             targetZ,
-
             SETTINGS.collisionRadius,
-
             playerState.id,
-
             heading.current
-
         );
 
         // ==================================
@@ -885,19 +706,14 @@ export default function PlayerKart() {
         if (movement.collided) {
 
             const movedX =
-
                 movement.x - currentX;
 
             const movedZ =
-
                 movement.z - currentZ;
 
             const movedDistance = Math.hypot(
-
                 movedX,
-
                 movedZ
-
             );
 
             // STOP WHEN COMPLETELY BLOCKED
@@ -911,64 +727,26 @@ export default function PlayerKart() {
                 // PRESERVE SAFE SLIDING MOVEMENT
 
                 velocity.current.set(
-
                     movedX / dt,
-
                     0,
-
                     movedZ / dt
-
                 );
 
                 speed.current *=
-
                     SETTINGS.collisionSpeedLoss;
             }
         }
 
         // ==================================
-        // MAP BOUNDARY SAFETY
+        // MAP BOUNDARY
         // ==================================
 
-        const limit = SETTINGS.mapLimit;
-
-        if (Math.abs(kart.position.x) > limit) {
-
-            kart.position.x =
-
-                THREE.MathUtils.clamp(
-
-                    kart.position.x,
-
-                    -limit,
-
-                    limit
-
-                );
-
-            velocity.current.x = 0;
-
-            speed.current *= 0.5;
-        }
-
-        if (Math.abs(kart.position.z) > limit) {
-
-            kart.position.z =
-
-                THREE.MathUtils.clamp(
-
-                    kart.position.z,
-
-                    -limit,
-
-                    limit
-
-                );
-
-            velocity.current.z = 0;
-
-            speed.current *= 0.5;
-        }
+        // Boundary collision is now handled
+        // by resolveKartMovement().
+        //
+        // Do not apply another fixed movement
+        // limit here because it can stop the kart
+        // before reaching the actual wall.
 
         // ==================================
         // UPDATE LIVE PLAYER STATE
@@ -991,9 +769,9 @@ export default function PlayerKart() {
             if (child.name === "kartWheel") {
 
                 child.rotation.x -=
-
                     (speed.current / 0.48) * dt;
             }
+
         });
 
     });
@@ -1007,19 +785,12 @@ export default function PlayerKart() {
         <>
 
             <Kart
-
                 ref={kartRef}
-
                 position={[0, 0, 0]}
-
                 color={selectedKart.color}
-
                 helmetColor={selectedDriver.helmetColor}
-
                 suitColor={selectedDriver.suitColor}
-
                 entity={playerState}
-
             />
 
             <FollowCamera target={kartRef} />

@@ -28,7 +28,7 @@ import {
 
 import {
     resolveKartMovement,
-    isOtherKartBlocked,
+    isKartRotationBlocked,
     KART_COLLISION_CONFIG,
 } from "../physics/KartCollision";
 
@@ -53,29 +53,130 @@ import matchState from "../match/MatchState";
 // ==========================================
 
 const BOT_MOVEMENT = {
+
+    // Used only for selecting safe AI targets.
+    // Actual movement boundaries are handled
+    // by the central collision system.
+
     get mapLimit() {
         return ARENA_CONFIG.movementLimit;
     },
+
     decisionInterval: 200,
+
     defaultMaxSpeed: 20,
+
     explorationSpeed: 0.85,
+
     escapeSpeed: 0.65,
+
     acceleration: 5,
+
     braking: 10,
+
     reverseSpeed: 7,
+
     pickupSlowDistance: 8,
+
     pickupSpeed: 6,
+
     attackRange: 45,
+
     grenadeAttackRange: 18,
+
     minimumAttackDistance: 5,
+
     preferredAttackDistance: 12,
+
     aimSpeed: 4,
+
     collisionRadius: KART_COLLISION_CONFIG.radius,
+
     collisionSpeedLoss: 0.35,
+
+    rotationStep: 0.025,
+
     stuckDuration: 0.75,
+
     recoveryDuration: 1100,
+
     recoverySteering: 2.2,
 };
+
+// ==========================================
+// SAFE BOT ROTATION
+// ==========================================
+
+function resolveBotRotation(
+    bot,
+    previousRotation,
+    targetRotation
+) {
+
+    const rotationDifference =
+        normalizeAngle(
+            targetRotation - previousRotation
+        );
+
+    if (
+        Math.abs(rotationDifference) < 0.000001
+    ) {
+
+        return {
+            rotation: previousRotation,
+            blocked: false,
+        };
+    }
+
+    const steps = Math.max(
+        1,
+        Math.ceil(
+            Math.abs(rotationDifference) /
+            BOT_MOVEMENT.rotationStep
+        )
+    );
+
+    const step =
+        rotationDifference / steps;
+
+    let safeRotation = previousRotation;
+
+    let blocked = false;
+
+    for (let index = 0; index < steps; index++) {
+
+        const nextRotation =
+            normalizeAngle(
+                safeRotation + step
+            );
+
+        const rotationBlocked =
+            isKartRotationBlocked(
+                bot.x,
+                bot.z,
+                bot.id,
+                nextRotation
+            );
+
+        if (rotationBlocked) {
+
+            blocked = true;
+
+            break;
+        }
+
+        safeRotation = nextRotation;
+    }
+
+    return {
+
+        rotation: normalizeAngle(
+            safeRotation
+        ),
+
+        blocked,
+    };
+}
 
 // ==========================================
 // MAIN BOT KART
@@ -102,11 +203,17 @@ export default function BotKart({ config }) {
     const wasStunned = useRef(false);
 
     const bot = useMemo(
+
         () => createEntity({
+
             id: config.id,
+
             name: config.name,
+
             isBot: true,
+
         }),
+
         [config.id, config.name]
     );
 
@@ -158,12 +265,11 @@ export default function BotKart({ config }) {
         resetBotAI();
 
         if (bot.object) {
+
             bot.object.visible = false;
         }
 
         registerEntity(bot);
-
-        console.log("BOT REGISTERED:", bot.id);
 
         return () => {
 
@@ -225,6 +331,7 @@ export default function BotKart({ config }) {
             kart.visible = false;
 
             if (labelRef.current) {
+
                 labelRef.current.style.display =
                     "none";
             }
@@ -313,9 +420,6 @@ export default function BotKart({ config }) {
 
             wasStunned.current = true;
 
-            // Do not treat a stunned bot
-            // as a bot stuck in an obstacle.
-
             stuckTime.current = 0;
 
             recoveryUntil.current = 0;
@@ -343,7 +447,8 @@ export default function BotKart({ config }) {
         // ==================================
 
         const effectiveMaxSpeed =
-            maxSpeed * movementMultiplier;
+            maxSpeed *
+            movementMultiplier;
 
         const effectiveReverseSpeed =
             BOT_MOVEMENT.reverseSpeed *
@@ -352,9 +457,6 @@ export default function BotKart({ config }) {
         const effectiveAcceleration =
             BOT_MOVEMENT.acceleration *
             movementMultiplier;
-
-        // Immediately reduce existing speed
-        // when the bot receives an ice hit.
 
         bot.speed = THREE.MathUtils.clamp(
             bot.speed,
@@ -378,7 +480,8 @@ export default function BotKart({ config }) {
                 getBotTarget(bot);
 
             nextDecision.current =
-                now + BOT_MOVEMENT.decisionInterval;
+                now +
+                BOT_MOVEMENT.decisionInterval;
         }
 
         const target = targetRef.current;
@@ -433,9 +536,11 @@ export default function BotKart({ config }) {
 
         let angleDifference = 0;
 
-        // Save rotation before AI steering.
+        // Save original rotation before AI
+        // calculates the next direction.
 
-        const previousRotation = bot.rotation;
+        const previousRotation =
+            bot.rotation;
 
         // ==================================
         // RECOVERY MODE
@@ -461,11 +566,12 @@ export default function BotKart({ config }) {
 
             const attackRange =
                 bot.weapon?.type === "grenade" ||
-                    bot.weapon?.type === "poison"
+                bot.weapon?.type === "poison"
                     ? BOT_MOVEMENT.grenadeAttackRange
                     : Math.min(
                         BOT_MOVEMENT.attackRange,
-                        bot.weapon?.maxRange ?? Infinity
+                        bot.weapon?.maxRange ??
+                        Infinity
                     );
 
             // ==============================
@@ -473,15 +579,25 @@ export default function BotKart({ config }) {
             // ==============================
 
             const canAim = Boolean(
+
                 enemy &&
+
                 bot.weapon &&
+
                 bot.ammo > 0 &&
+
                 !bot.firing &&
+
                 canEntityFire(bot) &&
-                now >= (enemy.protectedUntil || 0) &&
+
+                now >=
+                (enemy.protectedUntil || 0) &&
+
                 distance >=
                 BOT_MOVEMENT.minimumAttackDistance &&
+
                 distance <= attackRange &&
+
                 hasClearShot(
                     scene,
                     bot,
@@ -507,22 +623,26 @@ export default function BotKart({ config }) {
 
                 targetSpeed =
                     distance <
-                        BOT_MOVEMENT.preferredAttackDistance
+                    BOT_MOVEMENT.preferredAttackDistance
                         ? 0
                         : BOT_MOVEMENT.aimSpeed;
 
                 if (angleDifference > 0.65) {
+
                     targetSpeed = 0;
                 }
 
-                // ==============================
-                // ENEMY TOO CLOSE: MOVE AWAY
-                // ==============================
+            // ==============================
+            // ENEMY TOO CLOSE: MOVE AWAY
+            // ==============================
 
             } else if (
+
                 enemy &&
+
                 distance <
                 BOT_MOVEMENT.minimumAttackDistance
+
             ) {
 
                 bot.aiState = "EVADE";
@@ -539,13 +659,15 @@ export default function BotKart({ config }) {
                     type: "explore",
 
                     x: THREE.MathUtils.clamp(
-                        bot.x + (dx / length) * 15,
+                        bot.x +
+                        (dx / length) * 15,
                         -BOT_MOVEMENT.mapLimit,
                         BOT_MOVEMENT.mapLimit
                     ),
 
                     z: THREE.MathUtils.clamp(
-                        bot.z + (dz / length) * 15,
+                        bot.z +
+                        (dz / length) * 15,
                         -BOT_MOVEMENT.mapLimit,
                         BOT_MOVEMENT.mapLimit
                     ),
@@ -559,7 +681,8 @@ export default function BotKart({ config }) {
                         false
                     );
 
-                targetSpeed = maxSpeed * 0.65;
+                targetSpeed =
+                    maxSpeed * 0.65;
 
             } else {
 
@@ -585,9 +708,9 @@ export default function BotKart({ config }) {
                         maxSpeed *
                         BOT_MOVEMENT.escapeSpeed;
 
-                    // ==========================
-                    // SEARCH WEAPON
-                    // ==========================
+                // ==========================
+                // SEARCH WEAPON
+                // ==========================
 
                 } else if (
                     target.type === "pickup"
@@ -606,9 +729,9 @@ export default function BotKart({ config }) {
                             BOT_MOVEMENT.pickupSpeed;
                     }
 
-                    // ==========================
-                    // EXPLORE LARGE OPEN MAP
-                    // ==========================
+                // ==========================
+                // EXPLORE OPEN MAP
+                // ==========================
 
                 } else if (
                     target.type === "explore"
@@ -627,9 +750,9 @@ export default function BotKart({ config }) {
                         nextDecision.current = 0;
                     }
 
-                    // ==========================
-                    // CHASE ENEMY
-                    // ==========================
+                // ==========================
+                // CHASE ENEMY
+                // ==========================
 
                 } else if (
                     target.type === "enemy"
@@ -666,38 +789,42 @@ export default function BotKart({ config }) {
 
                 targetSpeed = Math.min(
                     targetSpeed,
-                    6
+                    maxSpeed * 0.45
                 );
             }
         }
 
         // ==================================
-        // NORMALIZE ROTATION
+        // ACCURATE AND SAFE BOT ROTATION
         // ==================================
 
-        bot.rotation =
+        const desiredRotation =
             normalizeAngle(bot.rotation);
 
-        // ==================================
-        // SAFE KART ROTATION
-        // ==================================
-
-        const rotationBlocked =
-            isOtherKartBlocked(
-                bot.x,
-                bot.z,
-                bot.id,
-                bot.rotation
+        const rotationResult =
+            resolveBotRotation(
+                bot,
+                previousRotation,
+                desiredRotation
             );
 
-        if (rotationBlocked) {
+        bot.rotation =
+            rotationResult.rotation;
 
-            bot.rotation = previousRotation;
+        const rotationBlocked =
+            rotationResult.blocked;
+
+        // ==================================
+        // HANDLE BLOCKED ROTATION
+        // ==================================
+
+        if (rotationBlocked) {
 
             if (!isRecovering) {
 
                 targetSpeed =
-                    -BOT_MOVEMENT.reverseSpeed * 0.6;
+                    -BOT_MOVEMENT.reverseSpeed *
+                    0.6;
 
                 nextDecision.current = 0;
             }
@@ -721,7 +848,7 @@ export default function BotKart({ config }) {
 
         const acceleration =
             Math.abs(targetSpeed) <
-                Math.abs(bot.speed)
+            Math.abs(bot.speed)
                 ? BOT_MOVEMENT.braking
                 : effectiveAcceleration;
 
@@ -770,7 +897,7 @@ export default function BotKart({ config }) {
             dt;
 
         // ==================================
-        // COMMON MAP AND KART COLLISION
+        // ACCURATE RECTANGULAR COLLISION
         // ==================================
 
         const movement = resolveKartMovement(
@@ -792,30 +919,14 @@ export default function BotKart({ config }) {
         bot.z = movement.z;
 
         // ==================================
-        // LARGE MAP BOUNDARY SAFETY
+        // MAP BOUNDARY
         // ==================================
 
-        const limit = BOT_MOVEMENT.mapLimit;
-
-        const safeX = THREE.MathUtils.clamp(
-            bot.x,
-            -limit,
-            limit
-        );
-
-        const safeZ = THREE.MathUtils.clamp(
-            bot.z,
-            -limit,
-            limit
-        );
-
-        const boundaryCollision =
-            safeX !== bot.x ||
-            safeZ !== bot.z;
-
-        bot.x = safeX;
-
-        bot.z = safeZ;
+        // Do not apply an additional fixed
+        // boundary clamp here.
+        //
+        // resolveKartMovement() already checks
+        // actual kart dimensions and boundaries.
 
         // ==================================
         // CALCULATE ACTUAL MOVEMENT
@@ -830,11 +941,11 @@ export default function BotKart({ config }) {
         // HANDLE COLLISION RESPONSE
         // ==================================
 
-        const collided =
-            movement.collided ||
-            boundaryCollision;
+        const collided = movement.collided;
 
         if (collided) {
+
+            // Completely blocked.
 
             if (movedDistance < 0.001) {
 
@@ -842,9 +953,13 @@ export default function BotKart({ config }) {
 
             } else {
 
+                // Preserve safe sliding movement.
+
                 bot.speed *=
                     BOT_MOVEMENT.collisionSpeedLoss;
             }
+
+            // Ask AI to calculate a new route.
 
             if (!isRecovering) {
 
@@ -858,30 +973,41 @@ export default function BotKart({ config }) {
 
         const intentionallyStopped =
             !rotationBlocked && (
+
                 bot.aiState === "AIM" ||
+
                 bot.aiState === "ATTACK" ||
+
                 bot.firing ||
+
                 Math.abs(targetSpeed) < 1
             );
 
-        // Adjust stuck detection according
-        // to the active ice slow effect.
-
         const stuckMovementThreshold =
-            dt * 1.5 * movementMultiplier;
+            dt *
+            1.5 *
+            movementMultiplier;
 
         const stuckSpeedThreshold =
-            4 * movementMultiplier;
+            4 *
+            movementMultiplier;
 
         if (
+
             !isRecovering &&
+
             !intentionallyStopped &&
+
             (
                 rotationBlocked ||
+
                 Math.abs(targetSpeed) >
                 stuckSpeedThreshold
             ) &&
-            movedDistance < stuckMovementThreshold
+
+            movedDistance <
+            stuckMovementThreshold
+
         ) {
 
             stuckTime.current += dt;
@@ -896,13 +1022,17 @@ export default function BotKart({ config }) {
         // ==================================
 
         if (
+
             stuckTime.current >
             BOT_MOVEMENT.stuckDuration &&
+
             now >= recoveryUntil.current
+
         ) {
 
             recoveryUntil.current =
-                now + BOT_MOVEMENT.recoveryDuration;
+                now +
+                BOT_MOVEMENT.recoveryDuration;
 
             recoveryDirection.current =
                 Math.random() > 0.5
@@ -937,11 +1067,17 @@ export default function BotKart({ config }) {
         // ==================================
 
         if (
+
             enemy &&
+
             enemy.alive &&
+
             now >= recoveryUntil.current &&
+
             bot.aiState !== "EVADE" &&
+
             canEntityFire(bot)
+
         ) {
 
             updateBotCombat(
@@ -964,6 +1100,7 @@ export default function BotKart({ config }) {
                 child.rotation.x -=
                     (bot.speed / 0.48) * dt;
             }
+
         });
 
     });
@@ -1000,9 +1137,13 @@ export default function BotKart({ config }) {
 // ==========================================
 
 function BotLabel({
+
     bot,
+
     healthRef,
+
     labelRef,
+
 }) {
 
     const ref = useRef();
@@ -1016,6 +1157,7 @@ function BotLabel({
             3.3,
             bot.z
         );
+
     });
 
     return (

@@ -11,10 +11,6 @@ import {
     unregisterKartCollider,
 } from "../physics/KartCollision";
 
-// ==========================================
-// SNOW MAP CONFIGURATION
-// ==========================================
-
 import {
     SNOW_ARENA_CONFIG
 } from "./ArenaConfig";
@@ -22,19 +18,18 @@ import {
 export const SNOW_CONFIG = SNOW_ARENA_CONFIG;
 
 // ==========================================
-// REUSABLE COLLISION OBJECT
+// ACCURATE COLLISION OBJECT
 // ==========================================
 
 function Obstacle({
-
     position,
-
     rotation = 0,
-
     type = "building",
-
+    collisionSize,
+    collisionOffset,
+    collisionShape = "box",
+    collisionRadius,
     children,
-
 }) {
 
     const objectRef = useRef(null);
@@ -51,14 +46,33 @@ function Obstacle({
 
             type,
 
+            shape: collisionShape,
+
+            size: collisionSize,
+
+            offset: collisionOffset,
+
+            radius: collisionRadius,
+
+            groundCollisionOnly: true,
+
         });
 
         return () => {
 
             unregisterKartCollider(object);
+
         };
 
-    }, [position, rotation, type]);
+    }, [
+        position,
+        rotation,
+        type,
+        collisionSize,
+        collisionOffset,
+        collisionShape,
+        collisionRadius,
+    ]);
 
     return (
 
@@ -82,7 +96,8 @@ function useSnowTexture() {
 
     const texture = useMemo(() => {
 
-        const canvas = document.createElement("canvas");
+        const canvas =
+            document.createElement("canvas");
 
         canvas.width = 256;
 
@@ -104,19 +119,13 @@ function useSnowTexture() {
                 205 + Math.floor(Math.random() * 45);
 
             ctx.fillStyle =
-
                 `rgba(${shade},${Math.min(255, shade + 5)},255,0.45)`;
 
             ctx.fillRect(
-
                 x,
-
                 y,
-
                 1 + Math.random() * 2,
-
                 1 + Math.random() * 2
-
             );
         }
 
@@ -186,11 +195,8 @@ function SnowGround() {
 // ==========================================
 
 function FrozenRoad({
-
     position,
-
     size,
-
 }) {
 
     return (
@@ -217,53 +223,91 @@ function FrozenRoad({
 }
 
 // ==========================================
-// SNOW BOUNDARY WALL
+// ACCURATE SNOW BOUNDARY WALL
 // ==========================================
 
 function SnowWall({
-
     position,
-
     rotation = 0,
-
 }) {
+
+    const wallLength =
+        SNOW_CONFIG.playableSize;
+
+    const wallHeight =
+        SNOW_CONFIG.wallHeight;
+
+    const wallThickness =
+        SNOW_CONFIG.wallThickness;
 
     return (
 
-        <Obstacle
+        <group
             position={position}
-            rotation={rotation}
-            type="wall"
+            rotation={[0, rotation, 0]}
         >
 
-            {/* Main stone wall */}
+            {/* Actual stone wall collision */}
+
+            <Obstacle
+                position={[0, 0, 0]}
+                type="wall"
+                collisionSize={[
+                    wallLength,
+                    wallHeight,
+                    wallThickness,
+                ]}
+                collisionOffset={[
+                    0,
+                    wallHeight / 2,
+                    0,
+                ]}
+            >
+
+                <mesh
+                    position={[
+                        0,
+                        wallHeight / 2,
+                        0,
+                    ]}
+                    castShadow
+                    receiveShadow
+                >
+
+                    <boxGeometry
+                        args={[
+                            wallLength,
+                            wallHeight,
+                            wallThickness,
+                        ]}
+                    />
+
+                    <meshStandardMaterial
+                        color="#647583"
+                        roughness={0.95}
+                    />
+
+                </mesh>
+
+            </Obstacle>
+
+            {/* Decorative snow on top */}
 
             <mesh
-                position={[0, 2, 0]}
-                castShadow
+                position={[
+                    0,
+                    wallHeight + 0.15,
+                    0,
+                ]}
                 receiveShadow
             >
 
                 <boxGeometry
-                    args={[280, 4, 1.5]}
-                />
-
-                <meshStandardMaterial
-                    color="#647583"
-                    roughness={0.95}
-                />
-
-            </mesh>
-
-            {/* Snow on top */}
-
-            <mesh
-                position={[0, 4.15, 0]}
-                receiveShadow
-            >
-
-                <boxGeometry
-                    args={[280, 0.35, 1.9]}
+                    args={[
+                        wallLength,
+                        0.35,
+                        1.9,
+                    ]}
                 />
 
                 <meshStandardMaterial
@@ -273,19 +317,28 @@ function SnowWall({
 
             </mesh>
 
-            {/* Wall support pillars */}
+            {/* Individual wall support pillars */}
 
             {Array.from(
-
                 { length: 15 },
-
                 (_, index) => (
 
-                    <group
+                    <Obstacle
                         key={index}
                         position={[
                             -139 + index * (278 / 14),
                             0,
+                            0,
+                        ]}
+                        type="wall"
+                        collisionSize={[
+                            2,
+                            4.6,
+                            2.2,
+                        ]}
+                        collisionOffset={[
+                            0,
+                            2.3,
                             0,
                         ]}
                     >
@@ -305,6 +358,8 @@ function SnowWall({
 
                         </mesh>
 
+                        {/* Pillar snow decoration */}
+
                         <mesh position={[0, 4.65, 0]}>
 
                             <boxGeometry
@@ -317,13 +372,12 @@ function SnowWall({
 
                         </mesh>
 
-                    </group>
+                    </Obstacle>
 
                 )
-
             )}
 
-        </Obstacle>
+        </group>
     );
 }
 
@@ -332,28 +386,28 @@ function SnowWall({
 // ==========================================
 
 function PineTree({
-
     position,
-
     size = 9,
-
     rotation = 0,
-
 }) {
 
     const scale = size / 9;
+
+    const trunkRadius = 0.45 * scale;
 
     return (
 
         <Obstacle
             position={position}
             rotation={rotation}
-            type="building"
+            type="tree"
+            collisionShape="circle"
+            collisionRadius={trunkRadius}
         >
 
             <group scale={scale}>
 
-                {/* Tree trunk */}
+                {/* Actual tree trunk */}
 
                 <mesh
                     position={[0, 1.5, 0]}
@@ -361,7 +415,12 @@ function PineTree({
                 >
 
                     <cylinderGeometry
-                        args={[0.3, 0.45, 3, 8]}
+                        args={[
+                            0.3,
+                            0.45,
+                            3,
+                            8,
+                        ]}
                     />
 
                     <meshStandardMaterial
@@ -371,7 +430,7 @@ function PineTree({
 
                 </mesh>
 
-                {/* Pine leaves and snow layers */}
+                {/* Non-blocking pine leaves */}
 
                 {[
 
@@ -398,7 +457,11 @@ function PineTree({
                     <group key={index}>
 
                         <mesh
-                            position={[0, layer.y, 0]}
+                            position={[
+                                0,
+                                layer.y,
+                                0,
+                            ]}
                             castShadow
                             receiveShadow
                         >
@@ -457,11 +520,8 @@ function PineTree({
 // ==========================================
 
 function SnowCabin({
-
     position,
-
     rotation = 0,
-
 }) {
 
     return (
@@ -470,9 +530,11 @@ function SnowCabin({
             position={position}
             rotation={rotation}
             type="building"
+            collisionSize={[10, 5, 8]}
+            collisionOffset={[0, 2.5, 0]}
         >
 
-            {/* Wooden cabin body */}
+            {/* Actual wooden cabin body */}
 
             <mesh
                 position={[0, 2.5, 0]}
@@ -492,9 +554,7 @@ function SnowCabin({
             {/* Wooden horizontal panels */}
 
             {Array.from(
-
                 { length: 9 },
-
                 (_, index) => (
 
                     <group key={index}>
@@ -511,7 +571,11 @@ function SnowCabin({
                             >
 
                                 <boxGeometry
-                                    args={[10, 0.08, 0.1]}
+                                    args={[
+                                        10,
+                                        0.08,
+                                        0.1,
+                                    ]}
                                 />
 
                                 <meshStandardMaterial
@@ -525,10 +589,9 @@ function SnowCabin({
                     </group>
 
                 )
-
             )}
 
-            {/* Sloped snow-covered roof */}
+            {/* Roof does not extend collision */}
 
             {[-1, 1].map((side) => (
 
@@ -597,7 +660,9 @@ function SnowCabin({
 
             <mesh position={[0.65, 1.4, 4.17]}>
 
-                <sphereGeometry args={[0.12, 8, 8]} />
+                <sphereGeometry
+                    args={[0.12, 8, 8]}
+                />
 
                 <meshStandardMaterial
                     color="#c2a05c"
@@ -613,7 +678,11 @@ function SnowCabin({
 
                 <group
                     key={x}
-                    position={[x, 2.9, 4.08]}
+                    position={[
+                        x,
+                        2.9,
+                        4.08,
+                    ]}
                 >
 
                     <mesh>
@@ -670,7 +739,7 @@ function SnowCabin({
 
             ))}
 
-            {/* Chimney */}
+            {/* Decorative chimney */}
 
             <mesh
                 position={[3, 7, -2]}
@@ -709,13 +778,9 @@ function SnowCabin({
 // ==========================================
 
 function IceRock({
-
     position,
-
     size = 3,
-
     rotation = 0,
-
 }) {
 
     return (
@@ -724,10 +789,18 @@ function IceRock({
             position={position}
             rotation={rotation}
             type="rock"
+            collisionShape="circle"
+            collisionRadius={size * 0.95}
         >
 
+            {/* Main ice rock */}
+
             <mesh
-                position={[0, size * 0.55, 0]}
+                position={[
+                    0,
+                    size * 0.55,
+                    0,
+                ]}
                 scale={[1.2, 0.8, 0.9]}
                 castShadow
                 receiveShadow
@@ -746,8 +819,14 @@ function IceRock({
 
             </mesh>
 
+            {/* Decorative snow layer */}
+
             <mesh
-                position={[0, size * 0.9, 0]}
+                position={[
+                    0,
+                    size * 0.9,
+                    0,
+                ]}
                 scale={[1.05, 0.35, 0.8]}
                 receiveShadow
             >
@@ -773,13 +852,9 @@ function IceRock({
 // ==========================================
 
 function SnowContainer({
-
     position,
-
     rotation = 0,
-
     color = "#496b80",
-
 }) {
 
     return (
@@ -788,7 +863,11 @@ function SnowContainer({
             position={position}
             rotation={rotation}
             type="container"
+            collisionSize={[10, 3.6, 4]}
+            collisionOffset={[0, 1.8, 0]}
         >
+
+            {/* Actual container body */}
 
             <mesh
                 position={[0, 1.8, 0]}
@@ -808,12 +887,10 @@ function SnowContainer({
 
             </mesh>
 
-            {/* Metal ridges */}
+            {/* Decorative metal ridges */}
 
             {Array.from(
-
                 { length: 13 },
-
                 (_, index) => (
 
                     <group key={index}>
@@ -830,7 +907,11 @@ function SnowContainer({
                             >
 
                                 <boxGeometry
-                                    args={[0.15, 3.5, 0.15]}
+                                    args={[
+                                        0.15,
+                                        3.5,
+                                        0.15,
+                                    ]}
                                 />
 
                                 <meshStandardMaterial
@@ -844,10 +925,9 @@ function SnowContainer({
                     </group>
 
                 )
-
             )}
 
-            {/* Snow layer */}
+            {/* Decorative snow layer */}
 
             <mesh
                 position={[0, 3.75, 0]}
@@ -874,13 +954,9 @@ function SnowContainer({
 // ==========================================
 
 function SnowCrate({
-
     position,
-
     size = 2.8,
-
     rotation = 0,
-
 }) {
 
     return (
@@ -889,7 +965,19 @@ function SnowCrate({
             position={position}
             rotation={rotation}
             type="crate"
+            collisionSize={[
+                size,
+                size,
+                size,
+            ]}
+            collisionOffset={[
+                0,
+                size / 2,
+                0,
+            ]}
         >
+
+            {/* Actual crate body */}
 
             <mesh
                 position={[0, size / 2, 0]}
@@ -898,7 +986,11 @@ function SnowCrate({
             >
 
                 <boxGeometry
-                    args={[size, size, size]}
+                    args={[
+                        size,
+                        size,
+                        size,
+                    ]}
                 />
 
                 <meshStandardMaterial
@@ -907,6 +999,8 @@ function SnowCrate({
                 />
 
             </mesh>
+
+            {/* Decorative wooden strips */}
 
             {[-1, 1].map((side) => (
 
@@ -917,11 +1011,19 @@ function SnowCrate({
                         size / 2,
                         side * (size / 2 + 0.06),
                     ]}
-                    rotation={[0, 0, Math.PI / 4]}
+                    rotation={[
+                        0,
+                        0,
+                        Math.PI / 4,
+                    ]}
                 >
 
                     <boxGeometry
-                        args={[size * 1.3, 0.2, 0.12]}
+                        args={[
+                            size * 1.3,
+                            0.2,
+                            0.12,
+                        ]}
                     />
 
                     <meshStandardMaterial
@@ -932,8 +1034,14 @@ function SnowCrate({
 
             ))}
 
+            {/* Decorative snow on crate */}
+
             <mesh
-                position={[0, size + 0.12, 0]}
+                position={[
+                    0,
+                    size + 0.12,
+                    0,
+                ]}
             >
 
                 <boxGeometry
@@ -946,6 +1054,7 @@ function SnowCrate({
 
                 <meshStandardMaterial
                     color="#f3f8ff"
+                    roughness={1}
                 />
 
             </mesh>
@@ -964,7 +1073,7 @@ function FrozenLake({ position }) {
 
         <group position={position}>
 
-            {/* Flat, driveable ice surface */}
+            {/* Driveable ice surface */}
 
             <mesh
                 rotation={[-Math.PI / 2, 0, 0]}
@@ -973,7 +1082,9 @@ function FrozenLake({ position }) {
                 receiveShadow
             >
 
-                <circleGeometry args={[23, 64]} />
+                <circleGeometry
+                    args={[23, 64]}
+                />
 
                 <meshStandardMaterial
                     color="#94cbe2"
@@ -983,7 +1094,7 @@ function FrozenLake({ position }) {
 
             </mesh>
 
-            {/* Snow around the lake */}
+            {/* Non-blocking snow around lake */}
 
             <mesh
                 rotation={[-Math.PI / 2, 0, 0]}
@@ -1007,15 +1118,12 @@ function FrozenLake({ position }) {
 }
 
 // ==========================================
-// WOODEN BRIDGE
+// DRIVEABLE WOODEN BRIDGE
 // ==========================================
 
 function WoodenBridge({
-
     position,
-
     rotation = 0,
-
 }) {
 
     return (
@@ -1025,12 +1133,10 @@ function WoodenBridge({
             rotation={[0, rotation, 0]}
         >
 
-            {/* Flat driveable wooden surface */}
+            {/* Driveable wooden surface */}
 
             {Array.from(
-
                 { length: 20 },
-
                 (_, index) => (
 
                     <mesh
@@ -1044,7 +1150,11 @@ function WoodenBridge({
                     >
 
                         <boxGeometry
-                            args={[10, 0.07, 0.96]}
+                            args={[
+                                10,
+                                0.07,
+                                0.96,
+                            ]}
                         />
 
                         <meshStandardMaterial
@@ -1059,55 +1169,107 @@ function WoodenBridge({
                     </mesh>
 
                 )
-
             )}
 
-            {/* Bridge side rails */}
+            {/* Separate bridge side rails */}
 
             {[-1, 1].map((side) => (
 
-                <Obstacle
+                <group
                     key={side}
-                    position={[side * 5, 0, 0]}
-                    type="barrier"
+                    position={[
+                        side * 5,
+                        0,
+                        0,
+                    ]}
                 >
 
-                    <mesh
-                        position={[0, 1, 0]}
-                        castShadow
+                    {/* Actual horizontal rail */}
+
+                    <Obstacle
+                        position={[0, 0, 0]}
+                        type="barrier"
+                        collisionSize={[
+                            0.3,
+                            0.35,
+                            20,
+                        ]}
+                        collisionOffset={[
+                            0,
+                            1,
+                            0,
+                        ]}
                     >
 
-                        <boxGeometry
-                            args={[0.3, 0.35, 20]}
-                        />
-
-                        <meshStandardMaterial
-                            color="#614936"
-                        />
-
-                    </mesh>
-
-                    {[-9, -6, -3, 0, 3, 6, 9].map((z) => (
-
                         <mesh
-                            key={z}
-                            position={[0, 0.65, z]}
+                            position={[0, 1, 0]}
                             castShadow
                         >
 
                             <boxGeometry
-                                args={[0.4, 1.3, 0.4]}
+                                args={[
+                                    0.3,
+                                    0.35,
+                                    20,
+                                ]}
                             />
 
                             <meshStandardMaterial
-                                color="#70543c"
+                                color="#614936"
                             />
 
                         </mesh>
 
+                    </Obstacle>
+
+                    {/* Individual rail supports */}
+
+                    {[-9, -6, -3, 0, 3, 6, 9].map((z) => (
+
+                        <Obstacle
+                            key={z}
+                            position={[0, 0, z]}
+                            type="barrier"
+                            collisionSize={[
+                                0.4,
+                                1.3,
+                                0.4,
+                            ]}
+                            collisionOffset={[
+                                0,
+                                0.65,
+                                0,
+                            ]}
+                        >
+
+                            <mesh
+                                position={[
+                                    0,
+                                    0.65,
+                                    0,
+                                ]}
+                                castShadow
+                            >
+
+                                <boxGeometry
+                                    args={[
+                                        0.4,
+                                        1.3,
+                                        0.4,
+                                    ]}
+                                />
+
+                                <meshStandardMaterial
+                                    color="#70543c"
+                                />
+
+                            </mesh>
+
+                        </Obstacle>
+
                     ))}
 
-                </Obstacle>
+                </group>
 
             ))}
 
@@ -1120,15 +1282,10 @@ function WoodenBridge({
 // ==========================================
 
 function Mountain({
-
     position,
-
     height = 55,
-
     radius = 25,
-
     rotation = 0,
-
 }) {
 
     return (
@@ -1143,7 +1300,11 @@ function Mountain({
             <mesh position={[0, height / 2, 0]}>
 
                 <coneGeometry
-                    args={[radius, height, 7]}
+                    args={[
+                        radius,
+                        height,
+                        7,
+                    ]}
                 />
 
                 <meshStandardMaterial
@@ -1157,7 +1318,11 @@ function Mountain({
             {/* Mountain snow cap */}
 
             <mesh
-                position={[0, height * 0.78, 0]}
+                position={[
+                    0,
+                    height * 0.78,
+                    0,
+                ]}
             >
 
                 <coneGeometry
@@ -1186,17 +1351,35 @@ function Mountain({
 
 const CABINS = [
 
-    { position: [-45, 0, -45], rotation: 0 },
+    {
+        position: [-45, 0, -45],
+        rotation: 0,
+    },
 
-    { position: [45, 0, 45], rotation: Math.PI },
+    {
+        position: [45, 0, 45],
+        rotation: Math.PI,
+    },
 
-    { position: [-90, 0, 70], rotation: Math.PI / 2 },
+    {
+        position: [-90, 0, 70],
+        rotation: Math.PI / 2,
+    },
 
-    { position: [90, 0, -70], rotation: -Math.PI / 2 },
+    {
+        position: [90, 0, -70],
+        rotation: -Math.PI / 2,
+    },
 
-    { position: [-95, 0, -90], rotation: 0.4 },
+    {
+        position: [-95, 0, -90],
+        rotation: 0.4,
+    },
 
-    { position: [95, 0, 90], rotation: -0.4 },
+    {
+        position: [95, 0, 90],
+        rotation: -0.4,
+    },
 
 ];
 
@@ -1394,6 +1577,15 @@ const MOUNTAINS = [
 
 export default function SnowMap() {
 
+    const halfSize =
+        SNOW_CONFIG.halfSize;
+
+    const roadWidth =
+        SNOW_CONFIG.roadWidth;
+
+    const roadLength =
+        SNOW_CONFIG.roadLength;
+
     return (
 
         <group name="villageCollisionMap">
@@ -1406,12 +1598,18 @@ export default function SnowMap() {
 
             <FrozenRoad
                 position={[0, 0.02, 0]}
-                size={[12, 280]}
+                size={[
+                    roadWidth,
+                    roadLength,
+                ]}
             />
 
             <FrozenRoad
                 position={[0, 0.03, 0]}
-                size={[280, 12]}
+                size={[
+                    roadLength,
+                    roadWidth,
+                ]}
             />
 
             {/* Secondary roads */}
@@ -1429,30 +1627,46 @@ export default function SnowMap() {
             {/* Four boundary walls */}
 
             <SnowWall
-                position={[0, 0, -140]}
+                position={[
+                    0,
+                    0,
+                    -halfSize,
+                ]}
             />
 
             <SnowWall
-                position={[0, 0, 140]}
+                position={[
+                    0,
+                    0,
+                    halfSize,
+                ]}
             />
 
             <SnowWall
-                position={[-140, 0, 0]}
+                position={[
+                    -halfSize,
+                    0,
+                    0,
+                ]}
                 rotation={Math.PI / 2}
             />
 
             <SnowWall
-                position={[140, 0, 0]}
+                position={[
+                    halfSize,
+                    0,
+                    0,
+                ]}
                 rotation={Math.PI / 2}
             />
 
-            {/* Frozen lake */}
+            {/* Driveable frozen lake */}
 
             <FrozenLake
                 position={[-70, 0, 45]}
             />
 
-            {/* Wooden bridge */}
+            {/* Driveable wooden bridge */}
 
             <WoodenBridge
                 position={[-75, 0, 45]}
@@ -1469,7 +1683,7 @@ export default function SnowMap() {
 
             ))}
 
-            {/* Snow covered pine trees */}
+            {/* Pine trees with trunk collision */}
 
             {TREES.map((position, index) => (
 
@@ -1519,7 +1733,7 @@ export default function SnowMap() {
 
             ))}
 
-            {/* Background mountains */}
+            {/* Non-blocking background mountains */}
 
             <group name="nonBlockingDecorations">
 

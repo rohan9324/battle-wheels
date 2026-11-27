@@ -1,11 +1,12 @@
 import * as THREE from "three";
 
-import {
-    ARENA_CONFIG,
-} from "../maps/ArenaConfig";
+import { ARENA_CONFIG } from "../maps/ArenaConfig";
 
 import {
     isKartBlocked,
+    isKartBodyBlocked,
+    isOtherKartBlocked,
+    KART_COLLISION_CONFIG,
 } from "../physics/KartCollision";
 
 import {
@@ -58,12 +59,12 @@ const AI_SETTINGS = {
             ARENA_CONFIG.spawnLimit
         );
     },
+
     explorationArrivalDistance: 6,
     explorationTimeout: 12000,
 
     obstacleDetectionRange: 10,
-    obstacleCheckStep: 1,
-    entityAvoidanceDistance: 3.5,
+    obstacleCheckStep: 0.5,
 
     steeringSpeed: 3.2,
 
@@ -91,7 +92,6 @@ const AI_SETTINGS = {
 // ==========================================
 
 export function normalizeAngle(angle) {
-
     return Math.atan2(
         Math.sin(angle),
         Math.cos(angle)
@@ -103,10 +103,60 @@ export function normalizeAngle(angle) {
 // ==========================================
 
 function getDistance(bot, target) {
-
     return Math.hypot(
         target.x - bot.x,
         target.z - bot.z
+    );
+}
+
+// ==========================================
+// CALCULATE TARGET HEADING
+// ==========================================
+
+function getTargetHeading(bot, x, z) {
+    const dx = x - bot.x;
+    const dz = z - bot.z;
+
+    if (Math.hypot(dx, dz) < 0.001) {
+        return bot.rotation || 0;
+    }
+
+    return Math.atan2(-dx, -dz);
+}
+
+// ==========================================
+// ACCURATE MAP POSITION CHECK
+// ==========================================
+
+function isBotPositionBlocked(
+    bot,
+    x,
+    z,
+    rotation = bot.rotation
+) {
+    return isKartBodyBlocked(
+        x,
+        z,
+        rotation
+    );
+}
+
+// ==========================================
+// CHECK SAFE TARGET POSITION
+// ==========================================
+
+function isTargetPositionBlocked(bot, x, z) {
+    const heading = getTargetHeading(
+        bot,
+        x,
+        z
+    );
+
+    return isBotPositionBlocked(
+        bot,
+        x,
+        z,
+        heading
     );
 }
 
@@ -120,7 +170,6 @@ function checkBotStuck(bot, now) {
         !bot.aiLastPosition ||
         bot.aiTrackedLifeId !== bot.lifeId
     ) {
-
         bot.aiTrackedLifeId = bot.lifeId;
 
         bot.aiLastPosition = {
@@ -131,7 +180,6 @@ function checkBotStuck(bot, now) {
         bot.aiLastMovementCheck = now;
 
         bot.aiExploreTarget = null;
-
         bot.aiEscapeTarget = null;
 
         return false;
@@ -141,7 +189,6 @@ function checkBotStuck(bot, now) {
         now - bot.aiLastMovementCheck <
         AI_SETTINGS.stuckCheckInterval
     ) {
-
         return false;
     }
 
@@ -160,17 +207,14 @@ function checkBotStuck(bot, now) {
     const movementMultiplier =
         getMovementMultiplier(bot);
 
-    // Do not interrupt intentional combat,
-    // firing, or electric stun.
-
     if (
         bot.aiState === "ATTACK" ||
         bot.aiState === "AIM" ||
         bot.aiState === "STUNNED" ||
+        bot.aiState === "RECOVER" ||
         bot.firing ||
         movementMultiplier <= 0
     ) {
-
         return false;
     }
 
@@ -195,8 +239,6 @@ function isHazardousPosition(
 
     const now = performance.now();
 
-    // Protected bots can safely cross hazards.
-
     if (now < (bot.protectedUntil || 0)) {
         return false;
     }
@@ -209,7 +251,6 @@ function isHazardousPosition(
             trap.attackerId === bot.id ||
             now >= trap.expiresAt
         ) {
-
             continue;
         }
 
@@ -227,7 +268,7 @@ function isHazardousPosition(
         }
     }
 
-    // Avoid enemy poison damage zones.
+    // Avoid active poison zones.
 
     for (const zone of zones) {
 
@@ -235,7 +276,6 @@ function isHazardousPosition(
             zone.attackerId === bot.id ||
             now >= zone.expiresAt
         ) {
-
             continue;
         }
 
@@ -249,7 +289,6 @@ function isHazardousPosition(
             zone.radius +
             AI_SETTINGS.hazardClearance
         ) {
-
             return true;
         }
     }
@@ -270,7 +309,6 @@ function findNearestEnemy(
     const now = performance.now();
 
     let nearest = null;
-
     let nearestDistance = range;
 
     for (const entity of getAliveEntities()) {
@@ -279,7 +317,6 @@ function findNearestEnemy(
             entity.id === bot.id ||
             !entity.alive
         ) {
-
             continue;
         }
 
@@ -287,17 +324,16 @@ function findNearestEnemy(
             ignoreProtected &&
             now < (entity.protectedUntil || 0)
         ) {
-
             continue;
         }
 
-        const distance =
-            getDistance(bot, entity);
+        const distance = getDistance(
+            bot,
+            entity
+        );
 
         if (distance <= nearestDistance) {
-
             nearest = entity;
-
             nearestDistance = distance;
         }
     }
@@ -311,8 +347,10 @@ function findNearestEnemy(
 
 function createExploreTarget(bot) {
 
-    const limit =
-        AI_SETTINGS.explorationLimit;
+    const limit = AI_SETTINGS.explorationLimit;
+
+    const traps = getDeployedWeapons();
+    const zones = getPoisonZones();
 
     for (let attempt = 0; attempt < 80; attempt++) {
 
@@ -339,10 +377,15 @@ function createExploreTarget(bot) {
         );
 
         if (
-            isKartBlocked(x, z) ||
-            isHazardousPosition(bot, x, z)
+            isTargetPositionBlocked(bot, x, z) ||
+            isHazardousPosition(
+                bot,
+                x,
+                z,
+                traps,
+                zones
+            )
         ) {
-
             continue;
         }
 
@@ -352,7 +395,6 @@ function createExploreTarget(bot) {
                 z - bot.z
             ) < AI_SETTINGS.minimumExploreDistance
         ) {
-
             continue;
         }
 
@@ -374,14 +416,19 @@ function createExploreTarget(bot) {
             (Math.random() * 2 - 1) * limit;
 
         if (
-            !isKartBlocked(x, z) &&
-            !isHazardousPosition(bot, x, z) &&
+            !isTargetPositionBlocked(bot, x, z) &&
+            !isHazardousPosition(
+                bot,
+                x,
+                z,
+                traps,
+                zones
+            ) &&
             Math.hypot(
                 x - bot.x,
                 z - bot.z
             ) > 10
         ) {
-
             return {
                 type: "explore",
                 x,
@@ -399,15 +446,15 @@ function createExploreTarget(bot) {
 
 function getExploreTarget(bot, now) {
 
-    const currentTarget =
-        bot.aiExploreTarget;
+    const currentTarget = bot.aiExploreTarget;
 
     const needsNewTarget =
         !currentTarget ||
         getDistance(bot, currentTarget) <
-        AI_SETTINGS.explorationArrivalDistance ||
+            AI_SETTINGS.explorationArrivalDistance ||
         now >= (bot.aiExploreUntil || 0) ||
-        isKartBlocked(
+        isTargetPositionBlocked(
+            bot,
             currentTarget.x,
             currentTarget.z
         ) ||
@@ -437,8 +484,10 @@ function getExploreTarget(bot, now) {
 
 function findNearestPickup(bot) {
 
-    const pickups =
-        getPickupPositions();
+    const pickups = getPickupPositions();
+
+    const traps = getDeployedWeapons();
+    const zones = getPoisonZones();
 
     let nearest = null;
 
@@ -448,7 +497,6 @@ function findNearestPickup(bot) {
     for (const position of pickups) {
 
         const x = position[0];
-
         const z = position[2];
 
         const distance = Math.hypot(
@@ -461,15 +509,19 @@ function findNearestPickup(bot) {
         }
 
         if (
-            isKartBlocked(x, z) ||
-            isHazardousPosition(bot, x, z)
+            isTargetPositionBlocked(bot, x, z) ||
+            isHazardousPosition(
+                bot,
+                x,
+                z,
+                traps,
+                zones
+            )
         ) {
-
             continue;
         }
 
         nearest = position;
-
         nearestDistance = distance;
     }
 
@@ -501,24 +553,35 @@ function createEscapeTarget(bot) {
         0,
     ];
 
+    const traps = getDeployedWeapons();
+    const zones = getPoisonZones();
+
     const currentlyInHazard =
         isHazardousPosition(
             bot,
             bot.x,
-            bot.z
+            bot.z,
+            traps,
+            zones
         );
+
+    let bestTarget = null;
+    let bestClearance = 0;
 
     for (const offset of offsets) {
 
-        const angle =
-            bot.rotation + offset;
+        const angle = normalizeAngle(
+            bot.rotation + offset
+        );
 
-        let blocked = false;
+        let clearance = 0;
+
+        let exitedHazard = !currentlyInHazard;
 
         for (
-            let distance = 1;
+            let distance = AI_SETTINGS.obstacleCheckStep;
             distance <= 12;
-            distance++
+            distance += AI_SETTINGS.obstacleCheckStep
         ) {
 
             const x =
@@ -529,44 +592,74 @@ function createEscapeTarget(bot) {
                 bot.z -
                 Math.cos(angle) * distance;
 
+            // Check actual rectangular kart body.
+
             if (
-                isKartBlocked(x, z) ||
-                (
-                    !currentlyInHazard &&
-                    isHazardousPosition(bot, x, z)
+                isBotPositionBlocked(
+                    bot,
+                    x,
+                    z,
+                    angle
                 )
             ) {
-
-                blocked = true;
-
                 break;
+            }
+
+            // Check other karts.
+
+            if (
+                isOtherKartBlocked(
+                    x,
+                    z,
+                    bot.id,
+                    angle
+                )
+            ) {
+                break;
+            }
+
+            const hazardous =
+                isHazardousPosition(
+                    bot,
+                    x,
+                    z,
+                    traps,
+                    zones
+                );
+
+            if (!hazardous) {
+                exitedHazard = true;
+            } else if (exitedHazard) {
+                break;
+            }
+
+            if (!hazardous) {
+                clearance = distance;
             }
         }
 
-        const targetX =
-            bot.x - Math.sin(angle) * 12;
-
-        const targetZ =
-            bot.z - Math.cos(angle) * 12;
-
         if (
-            !blocked &&
-            !isHazardousPosition(
-                bot,
-                targetX,
-                targetZ
-            )
+            clearance >= 4 &&
+            clearance > bestClearance
         ) {
 
-            return {
+            bestClearance = clearance;
+
+            bestTarget = {
                 type: "explore",
-                x: targetX,
-                z: targetZ,
+
+                x:
+                    bot.x -
+                    Math.sin(angle) * clearance,
+
+                z:
+                    bot.z -
+                    Math.cos(angle) * clearance,
             };
         }
     }
 
-    return createExploreTarget(bot);
+    return bestTarget || createExploreTarget(bot);
 }
 
 // ==========================================
@@ -585,7 +678,6 @@ function fireBotWeapon(bot, now) {
         matchState.status !== "playing" ||
         now < (bot.nextFireAt || 0)
     ) {
-
         return false;
     }
 
@@ -611,21 +703,16 @@ function fireBotWeapon(bot, now) {
 function isEnemyBehindBot(bot, enemy) {
 
     const dx = enemy.x - bot.x;
-
     const dz = enemy.z - bot.z;
 
-    const distance =
-        Math.hypot(dx, dz);
+    const distance = Math.hypot(dx, dz);
 
     if (distance < 0.001) {
         return false;
     }
 
-    const forwardX =
-        -Math.sin(bot.rotation);
-
-    const forwardZ =
-        -Math.cos(bot.rotation);
+    const forwardX = -Math.sin(bot.rotation);
+    const forwardZ = -Math.cos(bot.rotation);
 
     const dot =
         forwardX * (dx / distance) +
@@ -640,8 +727,7 @@ function isEnemyBehindBot(bot, enemy) {
 
 function canDeployTrap(bot, weapon) {
 
-    const distance =
-        weapon.deployDistance || 3;
+    const distance = weapon.deployDistance || 3;
 
     const x =
         bot.x +
@@ -653,12 +739,14 @@ function canDeployTrap(bot, weapon) {
 
     const limit = ARENA_CONFIG.spawnLimit;
 
+    // Circular check is intentionally retained.
+    // This checks the trap, not the kart body.
+
     if (
         Math.abs(x) > limit ||
         Math.abs(z) > limit ||
         isKartBlocked(x, z, 0.65)
     ) {
-
         return false;
     }
 
@@ -690,7 +778,6 @@ function trySpecialWeapon(bot, enemy, now) {
         !canEntityFire(bot) ||
         now < (bot.nextFireAt || 0)
     ) {
-
         return false;
     }
 
@@ -703,9 +790,6 @@ function trySpecialWeapon(bot, enemy, now) {
     // ======================================
 
     if (weapon.type === "invincibility") {
-
-        // Do not waste invincibility while
-        // existing spawn protection is active.
 
         if (now < (bot.protectedUntil || 0)) {
             return false;
@@ -735,21 +819,17 @@ function trySpecialWeapon(bot, enemy, now) {
             enemyNearby ||
             insideHazard
         ) {
-
             return fireBotWeapon(bot, now);
         }
 
         return false;
     }
 
-    // Other special weapons require an enemy.
-
     if (
         !enemy ||
         !enemy.alive ||
         now < (enemy.protectedUntil || 0)
     ) {
-
         return false;
     }
 
@@ -761,11 +841,10 @@ function trySpecialWeapon(bot, enemy, now) {
 
         if (
             distance <=
-            AI_SETTINGS.mineDeploymentRange &&
+                AI_SETTINGS.mineDeploymentRange &&
             isEnemyBehindBot(bot, enemy) &&
             canDeployTrap(bot, weapon)
         ) {
-
             return fireBotWeapon(bot, now);
         }
 
@@ -780,11 +859,10 @@ function trySpecialWeapon(bot, enemy, now) {
 
         if (
             distance <=
-            AI_SETTINGS.fakeBoxDeploymentRange &&
+                AI_SETTINGS.fakeBoxDeploymentRange &&
             isEnemyBehindBot(bot, enemy) &&
             canDeployTrap(bot, weapon)
         ) {
-
             return fireBotWeapon(bot, now);
         }
 
@@ -801,7 +879,6 @@ function trySpecialWeapon(bot, enemy, now) {
             distance <=
             AI_SETTINGS.maceActivationRange
         ) {
-
             return fireBotWeapon(bot, now);
         }
 
@@ -832,14 +909,11 @@ function createEnemyTarget(enemy) {
 function createTrapLureTarget(bot, enemy) {
 
     const dx = bot.x - enemy.x;
-
     const dz = bot.z - enemy.z;
 
-    const distance =
-        Math.hypot(dx, dz) || 1;
+    const distance = Math.hypot(dx, dz) || 1;
 
-    const limit =
-        AI_SETTINGS.explorationLimit;
+    const limit = AI_SETTINGS.explorationLimit;
 
     const targetX = THREE.MathUtils.clamp(
         bot.x + dx / distance * 18,
@@ -854,14 +928,17 @@ function createTrapLureTarget(bot, enemy) {
     );
 
     if (
-        !isKartBlocked(targetX, targetZ) &&
+        !isTargetPositionBlocked(
+            bot,
+            targetX,
+            targetZ
+        ) &&
         !isHazardousPosition(
             bot,
             targetX,
             targetZ
         )
     ) {
-
         return {
             type: "explore",
             x: targetX,
@@ -882,7 +959,6 @@ export function getBotTarget(bot) {
         !bot.alive ||
         matchState.status !== "playing"
     ) {
-
         return null;
     }
 
@@ -895,15 +971,9 @@ export function getBotTarget(bot) {
         return null;
     }
 
-    const enemy =
-        findNearestEnemy(bot);
+    const enemy = findNearestEnemy(bot);
 
-    // ======================================
-    // ACTIVATE SPECIAL WEAPONS
-    // ======================================
-
-    // This runs even when the bot does not
-    // currently have an enemy movement target.
+    // Activate special weapons.
 
     trySpecialWeapon(bot, enemy, now);
 
@@ -924,11 +994,9 @@ export function getBotTarget(bot) {
 
         if (escapeTarget) {
 
-            bot.aiEscapeTarget =
-                escapeTarget;
+            bot.aiEscapeTarget = escapeTarget;
 
-            bot.aiEscapeUntil =
-                now + 2500;
+            bot.aiEscapeUntil = now + 2500;
 
             bot.aiState = "ESCAPE";
 
@@ -947,8 +1015,7 @@ export function getBotTarget(bot) {
         bot.aiEscapeTarget =
             createEscapeTarget(bot);
 
-        bot.aiEscapeUntil =
-            now + 2500;
+        bot.aiEscapeUntil = now + 2500;
     }
 
     // ======================================
@@ -966,7 +1033,6 @@ export function getBotTarget(bot) {
             now < bot.aiEscapeUntil &&
             distance > 3
         ) {
-
             bot.aiState = "ESCAPE";
 
             return bot.aiEscapeTarget;
@@ -988,8 +1054,7 @@ export function getBotTarget(bot) {
         !bot.firing
     ) {
 
-        const pickup =
-            findNearestPickup(bot);
+        const pickup = findNearestPickup(bot);
 
         if (pickup) {
 
@@ -1014,8 +1079,10 @@ export function getBotTarget(bot) {
         )
     ) {
 
-        const distance =
-            getDistance(bot, enemy);
+        const distance = getDistance(
+            bot,
+            enemy
+        );
 
         if (distance <= 25) {
 
@@ -1043,7 +1110,6 @@ export function getBotTarget(bot) {
         bot.weapon?.type === "mace" &&
         bot.firing
     ) {
-
         bot.aiState = "CHASE";
 
         return createEnemyTarget(enemy);
@@ -1059,10 +1125,6 @@ export function getBotTarget(bot) {
 
         return createEnemyTarget(enemy);
     }
-
-    // ======================================
-    // NO NEARBY ENEMY: EXPLORE
-    // ======================================
 
     return getExploreTarget(bot, now);
 }
@@ -1083,6 +1145,9 @@ function getDirectionClearance(
     const range =
         AI_SETTINGS.obstacleDetectionRange;
 
+    const step =
+        AI_SETTINGS.obstacleCheckStep;
+
     let clearance = range;
 
     const startsInHazard =
@@ -1094,13 +1159,43 @@ function getDirectionClearance(
             zones
         );
 
-    let exitedHazard =
-        !startsInHazard;
+    let exitedHazard = !startsInHazard;
+
+    const nearbyEntities = entities.filter(
+        (entity) => {
+
+            if (
+                entity.id === bot.id ||
+                !entity.alive ||
+                !entity.object ||
+                !entity.object.visible
+            ) {
+                return false;
+            }
+
+            const maximumDistance =
+                range +
+                Math.hypot(
+                    KART_COLLISION_CONFIG.kartHalfWidth,
+                    KART_COLLISION_CONFIG.kartHalfLength
+                ) * 2;
+
+            return (
+                Math.hypot(
+                    entity.x - bot.x,
+                    entity.z - bot.z
+                ) <= maximumDistance
+            );
+        }
+    );
+
+    let previousX = bot.x;
+    let previousZ = bot.z;
 
     for (
-        let distance = 1;
+        let distance = step;
         distance <= range;
-        distance += AI_SETTINGS.obstacleCheckStep
+        distance += step
     ) {
 
         const x =
@@ -1111,17 +1206,29 @@ function getDirectionClearance(
             bot.z -
             Math.cos(angle) * distance;
 
-        // Check houses, walls, trees,
-        // containers and other solid objects.
+        // ==================================
+        // RECTANGULAR MAP COLLISION
+        // ==================================
 
-        if (isKartBlocked(x, z)) {
-
-            clearance = distance - 1;
+        if (
+            isBotPositionBlocked(
+                bot,
+                x,
+                z,
+                angle
+            )
+        ) {
+            clearance = Math.max(
+                0,
+                distance - step
+            );
 
             break;
         }
 
-        // Avoid enemy traps and poison.
+        // ==================================
+        // AVOID SPECIAL WEAPON HAZARDS
+        // ==================================
 
         const hazardous =
             isHazardousPosition(
@@ -1138,39 +1245,40 @@ function getDirectionClearance(
 
         } else if (exitedHazard) {
 
-            clearance = distance - 1;
+            clearance = Math.max(
+                0,
+                distance - step
+            );
 
             break;
         }
 
-        // Avoid driving into other karts.
+        // ==================================
+        // ACCURATE KART-TO-KART PREDICTION
+        // ==================================
 
-        const occupied = entities.some(
-            (entity) => {
-
-                if (entity.id === bot.id) {
-                    return false;
-                }
-
-                return (
-                    Math.hypot(
-                        entity.x - x,
-                        entity.z - z
-                    ) <
-                    AI_SETTINGS.entityAvoidanceDistance
-                );
-            }
-        );
-
-        if (occupied) {
-
-            clearance = distance - 1;
+        if (
+            nearbyEntities.length > 0 &&
+            isOtherKartBlocked(
+                x,
+                z,
+                bot.id,
+                angle,
+                previousX,
+                previousZ
+            )
+        ) {
+            clearance = Math.max(
+                0,
+                distance - step
+            );
 
             break;
         }
 
-        // No need to check beyond
-        // a nearby weapon pickup.
+        // ==================================
+        // STOP CHECKING AFTER REACHING PICKUP
+        // ==================================
 
         if (
             target.type === "pickup" &&
@@ -1179,19 +1287,17 @@ function getDirectionClearance(
                 target.z - z
             ) < 1.5
         ) {
-
             return range;
         }
-    }
 
-    // Prefer directions that escape
-    // an existing poison or trap zone.
+        previousX = x;
+        previousZ = z;
+    }
 
     if (
         startsInHazard &&
         !exitedHazard
     ) {
-
         clearance *= 0.5;
     }
 
@@ -1209,7 +1315,6 @@ export function getBotHeading(bot, target) {
     }
 
     const dx = target.x - bot.x;
-
     const dz = target.z - bot.z;
 
     if (Math.hypot(dx, dz) < 0.01) {
@@ -1236,24 +1341,25 @@ export function getBotHeading(bot, target) {
         Math.PI,
     ];
 
-    const entities =
-        getAliveEntities();
+    const entities = getAliveEntities();
 
-    const traps =
-        getDeployedWeapons();
+    const traps = getDeployedWeapons();
 
-    const zones =
-        getPoisonZones();
+    const zones = getPoisonZones();
 
-    let bestHeading =
-        bot.rotation + Math.PI;
+    let bestHeading = bot.rotation;
 
     let bestScore = -Infinity;
 
+    let fallbackHeading = bot.rotation;
+
+    let fallbackClearance = 0;
+
     for (const offset of offsets) {
 
-        const angle =
-            desiredHeading + offset;
+        const angle = normalizeAngle(
+            desiredHeading + offset
+        );
 
         const clearance =
             getDirectionClearance(
@@ -1264,6 +1370,13 @@ export function getBotHeading(bot, target) {
                 traps,
                 zones
             );
+
+        if (clearance > fallbackClearance) {
+
+            fallbackClearance = clearance;
+
+            fallbackHeading = angle;
+        }
 
         if (clearance < 2) {
             continue;
@@ -1288,6 +1401,18 @@ export function getBotHeading(bot, target) {
         }
     }
 
+    // If no ideal route exists, use the
+    // direction with the best available clearance.
+
+    if (bestScore === -Infinity) {
+
+        return normalizeAngle(
+            fallbackClearance > 0
+                ? fallbackHeading
+                : bot.rotation + Math.PI
+        );
+    }
+
     return normalizeAngle(bestHeading);
 }
 
@@ -1306,15 +1431,10 @@ export function updateBotSteering(
         !target ||
         getMovementMultiplier(bot) <= 0
     ) {
-
         return 0;
     }
 
     let desiredHeading;
-
-    // ======================================
-    // DIRECT ENEMY AIMING
-    // ======================================
 
     if (directAim) {
 
@@ -1347,6 +1467,9 @@ export function updateBotSteering(
         bot.rotation
     );
 
+    // Final rotation validation is handled
+    // by BotKart.js using isKartRotationBlocked().
+
     return Math.abs(difference);
 }
 
@@ -1365,7 +1488,6 @@ export function getWeaponAttackRange(weapon) {
     switch (weapon.type) {
 
         case "grenade":
-
         case "poison":
 
             range =
@@ -1444,7 +1566,6 @@ export function hasClearShot(
         !enemy.alive ||
         !bot.weapon
     ) {
-
         return false;
     }
 
@@ -1456,7 +1577,6 @@ export function hasClearShot(
         bot.weapon.melee ||
         bot.weapon.powerUp
     ) {
-
         return false;
     }
 
@@ -1467,10 +1587,12 @@ export function hasClearShot(
 
     const start = new THREE.Vector3(
         bot.x -
-        Math.sin(bot.rotation) * forwardOffset,
+            Math.sin(bot.rotation) * forwardOffset,
+
         AI_SETTINGS.projectileHeight,
+
         bot.z -
-        Math.cos(bot.rotation) * forwardOffset
+            Math.cos(bot.rotation) * forwardOffset
     );
 
     const end = new THREE.Vector3(
@@ -1520,7 +1642,6 @@ function getAimTolerance(weapon, config) {
             return baseTolerance + 0.15;
 
         case "grenade":
-
         case "poison":
 
             return baseTolerance + 0.04;
@@ -1560,7 +1681,6 @@ export function updateBotCombat(
         bot.firing ||
         !canEntityFire(bot)
     ) {
-
         return false;
     }
 
@@ -1583,7 +1703,6 @@ export function updateBotCombat(
         weapon.melee ||
         weapon.powerUp
     ) {
-
         return trySpecialWeapon(
             bot,
             enemy,
@@ -1600,12 +1719,13 @@ export function updateBotCombat(
         !enemy.alive ||
         now < (enemy.protectedUntil || 0)
     ) {
-
         return false;
     }
 
-    const distance =
-        getDistance(bot, enemy);
+    const distance = getDistance(
+        bot,
+        enemy
+    );
 
     const attackRange =
         getWeaponAttackRange(weapon);
@@ -1616,10 +1736,9 @@ export function updateBotCombat(
 
     if (
         distance <
-        AI_SETTINGS.minimumAttackDistance ||
+            AI_SETTINGS.minimumAttackDistance ||
         distance > attackRange
     ) {
-
         return false;
     }
 

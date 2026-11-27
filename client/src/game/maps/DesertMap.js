@@ -7,10 +7,6 @@ import {
     unregisterKartCollider,
 } from "../physics/KartCollision";
 
-// ==========================================
-// DESERT MAP SETTINGS
-// ==========================================
-
 import {
     DESERT_ARENA_CONFIG
 } from "./ArenaConfig";
@@ -18,18 +14,23 @@ import {
 export const DESERT_CONFIG = DESERT_ARENA_CONFIG;
 
 // ==========================================
-// REUSABLE COLLISION OBJECT
+// REUSABLE ACCURATE COLLISION OBJECT
 // ==========================================
 
 function Obstacle({
     position,
     rotation = 0,
     type = "building",
+    collisionSize,
+    collisionOffset,
+    collisionShape = "box",
+    collisionRadius,
     children,
 }) {
     const objectRef = useRef(null);
 
     useEffect(() => {
+
         const object = objectRef.current;
 
         if (!object) return;
@@ -37,13 +38,36 @@ function Obstacle({
         object.updateWorldMatrix(true, true);
 
         registerKartCollider(object, {
+
             type,
+
+            shape: collisionShape,
+
+            size: collisionSize,
+
+            offset: collisionOffset,
+
+            radius: collisionRadius,
+
+            groundCollisionOnly: true,
+
         });
 
         return () => {
+
             unregisterKartCollider(object);
+
         };
-    }, [position, rotation, type]);
+
+    }, [
+        position,
+        rotation,
+        type,
+        collisionSize,
+        collisionOffset,
+        collisionShape,
+        collisionRadius,
+    ]);
 
     return (
         <group
@@ -61,19 +85,26 @@ function Obstacle({
 // ==========================================
 
 function useSandTexture() {
+
     const texture = useMemo(() => {
-        const canvas = document.createElement("canvas");
+
+        const canvas =
+            document.createElement("canvas");
 
         canvas.width = 256;
+
         canvas.height = 256;
 
         const ctx = canvas.getContext("2d");
 
         ctx.fillStyle = "#c5a16a";
+
         ctx.fillRect(0, 0, 256, 256);
 
         for (let i = 0; i < 14000; i++) {
+
             const x = Math.random() * 256;
+
             const y = Math.random() * 256;
 
             const shade =
@@ -93,6 +124,7 @@ function useSandTexture() {
         const map = new THREE.CanvasTexture(canvas);
 
         map.wrapS = THREE.RepeatWrapping;
+
         map.wrapT = THREE.RepeatWrapping;
 
         map.repeat.set(
@@ -105,10 +137,13 @@ function useSandTexture() {
         map.anisotropy = 8;
 
         return map;
+
     }, []);
 
     useEffect(() => {
+
         return () => texture.dispose();
+
     }, [texture]);
 
     return texture;
@@ -119,6 +154,7 @@ function useSandTexture() {
 // ==========================================
 
 function Ground() {
+
     const texture = useSandTexture();
 
     return (
@@ -138,6 +174,7 @@ function Ground() {
                 roughness={1}
                 metalness={0}
             />
+
         </mesh>
     );
 }
@@ -147,6 +184,7 @@ function Ground() {
 // ==========================================
 
 function Road({ position, size }) {
+
     return (
         <mesh
             position={position}
@@ -159,6 +197,7 @@ function Road({ position, size }) {
                 color="#92754e"
                 roughness={1}
             />
+
         </mesh>
     );
 }
@@ -167,62 +206,141 @@ function Road({ position, size }) {
 // MAP BOUNDARY WALL
 // ==========================================
 
-function BoundaryWall({ position, rotation = 0 }) {
+function BoundaryWall({
+    position,
+    rotation = 0,
+}) {
+
+    const wallLength = DESERT_CONFIG.playableSize;
+
+    const wallHeight = DESERT_CONFIG.wallHeight;
+
+    const wallThickness =
+        DESERT_CONFIG.wallThickness;
+
     return (
-        <Obstacle
+
+        <group
             position={position}
-            rotation={rotation}
-            type="wall"
+            rotation={[0, rotation, 0]}
         >
-            <mesh
-                position={[0, 2, 0]}
-                castShadow
-                receiveShadow
+
+            {/* Main wall collision */}
+
+            <Obstacle
+                position={[0, 0, 0]}
+                type="wall"
+                collisionSize={[
+                    wallLength,
+                    wallHeight,
+                    wallThickness,
+                ]}
+                collisionOffset={[
+                    0,
+                    wallHeight / 2,
+                    0,
+                ]}
             >
-                <boxGeometry
-                    args={[140, 4, 1.5]}
-                />
 
-                <meshStandardMaterial
-                    color="#8c795c"
-                    roughness={0.95}
-                />
-            </mesh>
+                <mesh
+                    position={[
+                        0,
+                        wallHeight / 2,
+                        0,
+                    ]}
+                    castShadow
+                    receiveShadow
+                >
 
-            <mesh position={[0, 4.15, 0]}>
+                    <boxGeometry
+                        args={[
+                            wallLength,
+                            wallHeight,
+                            wallThickness,
+                        ]}
+                    />
+
+                    <meshStandardMaterial
+                        color="#8c795c"
+                        roughness={0.95}
+                    />
+
+                </mesh>
+
+            </Obstacle>
+
+            {/* Decorative wall top */}
+
+            <mesh
+                position={[
+                    0,
+                    wallHeight + 0.15,
+                    0,
+                ]}
+            >
+
                 <boxGeometry
-                    args={[140, 0.3, 1.8]}
+                    args={[
+                        wallLength,
+                        0.3,
+                        1.8,
+                    ]}
                 />
 
                 <meshStandardMaterial
                     color="#5c5141"
                 />
+
             </mesh>
+
+            {/* Individual pillar collisions */}
 
             {Array.from(
                 { length: 15 },
                 (_, index) => (
-                    <mesh
+
+                    <Obstacle
                         key={index}
                         position={[
                             -69 + index * 9.85,
+                            0,
+                            0,
+                        ]}
+                        type="wall"
+                        collisionSize={[
+                            1.8,
+                            4.5,
+                            2,
+                        ]}
+                        collisionOffset={[
+                            0,
                             2.25,
                             0,
                         ]}
-                        castShadow
                     >
-                        <boxGeometry
-                            args={[1.8, 4.5, 2]}
-                        />
 
-                        <meshStandardMaterial
-                            color="#74634d"
-                            roughness={0.9}
-                        />
-                    </mesh>
+                        <mesh
+                            position={[0, 2.25, 0]}
+                            castShadow
+                        >
+
+                            <boxGeometry
+                                args={[1.8, 4.5, 2]}
+                            />
+
+                            <meshStandardMaterial
+                                color="#74634d"
+                                roughness={0.9}
+                            />
+
+                        </mesh>
+
+                    </Obstacle>
+
                 )
             )}
-        </Obstacle>
+
+        </group>
     );
 }
 
@@ -234,11 +352,17 @@ function Bunker({
     position,
     rotation = 0,
 }) {
+
     return (
+
         <Obstacle
             position={position}
             rotation={rotation}
+            type="building"
+            collisionSize={[10, 5, 8]}
+            collisionOffset={[0, 2.5, 0]}
         >
+
             {/* Main concrete building */}
 
             <mesh
@@ -246,20 +370,23 @@ function Bunker({
                 castShadow
                 receiveShadow
             >
+
                 <boxGeometry args={[10, 5, 8]} />
 
                 <meshStandardMaterial
                     color="#b0a183"
                     roughness={0.95}
                 />
+
             </mesh>
 
-            {/* Roof */}
+            {/* Roof does not extend collision */}
 
             <mesh
                 position={[0, 5.2, 0]}
                 castShadow
             >
+
                 <boxGeometry
                     args={[10.8, 0.4, 8.8]}
                 />
@@ -268,11 +395,13 @@ function Bunker({
                     color="#756e59"
                     roughness={0.85}
                 />
+
             </mesh>
 
             {/* Front door */}
 
             <mesh position={[0, 1.5, 4.02]}>
+
                 <boxGeometry
                     args={[2.2, 3, 0.1]}
                 />
@@ -282,15 +411,18 @@ function Bunker({
                     metalness={0.4}
                     roughness={0.6}
                 />
+
             </mesh>
 
             {/* Windows */}
 
             {[-3.3, 3.3].map((x) => (
+
                 <mesh
                     key={x}
                     position={[x, 3.3, 4.03]}
                 >
+
                     <boxGeometry
                         args={[1.8, 0.8, 0.12]}
                     />
@@ -299,15 +431,18 @@ function Bunker({
                         color="#252d30"
                         metalness={0.5}
                     />
+
                 </mesh>
+
             ))}
 
-            {/* Roof ventilation unit */}
+            {/* Roof ventilation */}
 
             <mesh
                 position={[2.5, 5.8, -1.5]}
                 castShadow
             >
+
                 <boxGeometry
                     args={[1.8, 0.8, 1.8]}
                 />
@@ -316,7 +451,9 @@ function Bunker({
                     color="#60645a"
                     metalness={0.5}
                 />
+
             </mesh>
+
         </Obstacle>
     );
 }
@@ -329,17 +466,24 @@ function MilitaryTent({
     position,
     rotation = 0,
 }) {
+
     return (
+
         <Obstacle
             position={position}
             rotation={rotation}
+            type="building"
+            collisionSize={[7.8, 4.4, 7.8]}
+            collisionOffset={[0, 2.2, 0]}
         >
+
             <mesh
                 position={[0, 2.2, 0]}
                 rotation={[0, Math.PI / 4, 0]}
                 castShadow
                 receiveShadow
             >
+
                 <coneGeometry
                     args={[5.5, 4.4, 4]}
                 />
@@ -348,11 +492,13 @@ function MilitaryTent({
                     color="#626b3c"
                     roughness={1}
                 />
+
             </mesh>
 
             {/* Tent base */}
 
             <mesh position={[0, 0.15, 0]}>
+
                 <boxGeometry
                     args={[7.8, 0.3, 7.8]}
                 />
@@ -360,7 +506,9 @@ function MilitaryTent({
                 <meshStandardMaterial
                     color="#4c5134"
                 />
+
             </mesh>
+
         </Obstacle>
     );
 }
@@ -374,17 +522,23 @@ function Container({
     rotation = 0,
     color = "#66724a",
 }) {
+
     return (
+
         <Obstacle
             position={position}
             rotation={rotation}
             type="container"
+            collisionSize={[9, 3.4, 3.5]}
+            collisionOffset={[0, 1.7, 0]}
         >
+
             <mesh
                 position={[0, 1.7, 0]}
                 castShadow
                 receiveShadow
             >
+
                 <boxGeometry
                     args={[9, 3.4, 3.5]}
                 />
@@ -394,14 +548,17 @@ function Container({
                     metalness={0.45}
                     roughness={0.65}
                 />
+
             </mesh>
 
-            {/* Metal ridges */}
+            {/* Decorative metal ridges */}
 
             {Array.from(
                 { length: 13 },
                 (_, index) => (
+
                     <group key={index}>
+
                         <mesh
                             position={[
                                 -4.2 + index * 0.7,
@@ -409,13 +566,19 @@ function Container({
                                 1.78,
                             ]}
                         >
+
                             <boxGeometry
-                                args={[0.12, 3.3, 0.12]}
+                                args={[
+                                    0.12,
+                                    3.3,
+                                    0.12,
+                                ]}
                             />
 
                             <meshStandardMaterial
                                 color="#41483b"
                             />
+
                         </mesh>
 
                         <mesh
@@ -425,17 +588,26 @@ function Container({
                                 -1.78,
                             ]}
                         >
+
                             <boxGeometry
-                                args={[0.12, 3.3, 0.12]}
+                                args={[
+                                    0.12,
+                                    3.3,
+                                    0.12,
+                                ]}
                             />
 
                             <meshStandardMaterial
                                 color="#41483b"
                             />
+
                         </mesh>
+
                     </group>
+
                 )
             )}
+
         </Obstacle>
     );
 }
@@ -449,17 +621,31 @@ function SupplyCrate({
     rotation = 0,
     size = 2.5,
 }) {
+
     return (
+
         <Obstacle
             position={position}
             rotation={rotation}
             type="crate"
+            collisionSize={[
+                size,
+                size,
+                size,
+            ]}
+            collisionOffset={[
+                0,
+                size / 2,
+                0,
+            ]}
         >
+
             <mesh
                 position={[0, size / 2, 0]}
                 castShadow
                 receiveShadow
             >
+
                 <boxGeometry
                     args={[size, size, size]}
                 />
@@ -468,9 +654,11 @@ function SupplyCrate({
                     color="#947047"
                     roughness={1}
                 />
+
             </mesh>
 
             {[-1, 1].map((side) => (
+
                 <mesh
                     key={side}
                     position={[
@@ -478,8 +666,13 @@ function SupplyCrate({
                         size / 2,
                         side * (size / 2 + 0.04),
                     ]}
-                    rotation={[0, 0, Math.PI / 4]}
+                    rotation={[
+                        0,
+                        0,
+                        Math.PI / 4,
+                    ]}
                 >
+
                     <boxGeometry
                         args={[
                             size * 1.3,
@@ -491,8 +684,11 @@ function SupplyCrate({
                     <meshStandardMaterial
                         color="#59452d"
                     />
+
                 </mesh>
+
             ))}
+
         </Obstacle>
     );
 }
@@ -505,17 +701,23 @@ function Barricade({
     position,
     rotation = 0,
 }) {
+
     return (
+
         <Obstacle
             position={position}
             rotation={rotation}
             type="barrier"
+            collisionSize={[5, 1.6, 1.4]}
+            collisionOffset={[0, 0.8, 0]}
         >
+
             <mesh
                 position={[0, 0.8, 0]}
                 castShadow
                 receiveShadow
             >
+
                 <boxGeometry
                     args={[5, 1.6, 1.4]}
                 />
@@ -524,9 +726,11 @@ function Barricade({
                     color="#96918a"
                     roughness={1}
                 />
+
             </mesh>
 
             <mesh position={[0, 1.2, 0.72]}>
+
                 <boxGeometry
                     args={[5, 0.4, 0.04]}
                 />
@@ -534,14 +738,17 @@ function Barricade({
                 <meshStandardMaterial
                     color="#d6a42d"
                 />
+
             </mesh>
 
             {[-1.8, -0.6, 0.6, 1.8].map((x) => (
+
                 <mesh
                     key={x}
                     position={[x, 1.2, 0.75]}
                     rotation={[0, 0, -0.5]}
                 >
+
                     <boxGeometry
                         args={[0.4, 0.45, 0.04]}
                     />
@@ -549,8 +756,11 @@ function Barricade({
                     <meshStandardMaterial
                         color="#292929"
                     />
+
                 </mesh>
+
             ))}
+
         </Obstacle>
     );
 }
@@ -564,18 +774,24 @@ function Rock({
     size = 2,
     rotation = 0,
 }) {
+
     return (
+
         <Obstacle
             position={position}
             rotation={rotation}
             type="rock"
+            collisionShape="circle"
+            collisionRadius={size * 0.95}
         >
+
             <mesh
                 position={[0, size * 0.45, 0]}
                 scale={[1.2, 0.7, 0.9]}
                 castShadow
                 receiveShadow
             >
+
                 <dodecahedronGeometry
                     args={[size, 0]}
                 />
@@ -585,7 +801,9 @@ function Rock({
                     roughness={1}
                     flatShading
                 />
+
             </mesh>
+
         </Obstacle>
     );
 }
@@ -594,27 +812,51 @@ function Rock({
 // DESERT CACTUS
 // ==========================================
 
-function Cactus({ position, size = 3 }) {
-    return (
-        <Obstacle
-            position={position}
-            type="building"
-        >
-            <mesh
-                position={[0, size / 2, 0]}
-                castShadow
-            >
-                <cylinderGeometry
-                    args={[0.32, 0.4, size, 8]}
-                />
+function Cactus({
+    position,
+    size = 3,
+}) {
 
-                <meshStandardMaterial
-                    color="#52733b"
-                    roughness={0.9}
-                />
-            </mesh>
+    return (
+
+        <group position={position}>
+
+            {/* Actual cactus trunk collision */}
+
+            <Obstacle
+                position={[0, 0, 0]}
+                type="tree"
+                collisionShape="circle"
+                collisionRadius={0.4}
+            >
+
+                <mesh
+                    position={[0, size / 2, 0]}
+                    castShadow
+                >
+
+                    <cylinderGeometry
+                        args={[
+                            0.32,
+                            0.4,
+                            size,
+                            8,
+                        ]}
+                    />
+
+                    <meshStandardMaterial
+                        color="#52733b"
+                        roughness={0.9}
+                    />
+
+                </mesh>
+
+            </Obstacle>
+
+            {/* Decorative cactus arms */}
 
             {[-1, 1].map((side) => (
+
                 <group
                     key={side}
                     position={[
@@ -623,14 +865,28 @@ function Cactus({ position, size = 3 }) {
                         0,
                     ]}
                 >
-                    <mesh rotation={[0, 0, Math.PI / 2]}>
+
+                    <mesh
+                        rotation={[
+                            0,
+                            0,
+                            Math.PI / 2,
+                        ]}
+                    >
+
                         <cylinderGeometry
-                            args={[0.19, 0.19, 1.1, 8]}
+                            args={[
+                                0.19,
+                                0.19,
+                                1.1,
+                                8,
+                            ]}
                         />
 
                         <meshStandardMaterial
                             color="#52733b"
                         />
+
                     </mesh>
 
                     <mesh
@@ -640,17 +896,27 @@ function Cactus({ position, size = 3 }) {
                             0,
                         ]}
                     >
+
                         <cylinderGeometry
-                            args={[0.19, 0.19, 1.2, 8]}
+                            args={[
+                                0.19,
+                                0.19,
+                                1.2,
+                                8,
+                            ]}
                         />
 
                         <meshStandardMaterial
                             color="#52733b"
                         />
+
                     </mesh>
+
                 </group>
+
             ))}
-        </Obstacle>
+
+        </group>
     );
 }
 
@@ -659,84 +925,177 @@ function Cactus({ position, size = 3 }) {
 // ==========================================
 
 const BUNKERS = [
-    { position: [-28, 0, -28], rotation: 0 },
-    { position: [28, 0, 28], rotation: Math.PI },
-    { position: [40, 0, -40], rotation: Math.PI / 2 },
-    { position: [-40, 0, 40], rotation: -Math.PI / 2 },
+
+    {
+        position: [-28, 0, -28],
+        rotation: 0,
+    },
+
+    {
+        position: [28, 0, 28],
+        rotation: Math.PI,
+    },
+
+    {
+        position: [40, 0, -40],
+        rotation: Math.PI / 2,
+    },
+
+    {
+        position: [-40, 0, 40],
+        rotation: -Math.PI / 2,
+    },
+
 ];
 
 const TENTS = [
-    { position: [-48, 0, -42], rotation: 0 },
-    { position: [-48, 0, -28], rotation: 0 },
-    { position: [48, 0, 42], rotation: Math.PI },
-    { position: [48, 0, 28], rotation: Math.PI },
+
+    {
+        position: [-48, 0, -42],
+        rotation: 0,
+    },
+
+    {
+        position: [-48, 0, -28],
+        rotation: 0,
+    },
+
+    {
+        position: [48, 0, 42],
+        rotation: Math.PI,
+    },
+
+    {
+        position: [48, 0, 28],
+        rotation: Math.PI,
+    },
+
 ];
 
 const CONTAINERS = [
+
     {
         position: [-20, 0, 20],
         rotation: Math.PI / 2,
         color: "#657447",
     },
+
     {
         position: [-30, 0, 18],
         rotation: 0,
         color: "#956844",
     },
+
     {
         position: [20, 0, -20],
         rotation: Math.PI / 2,
         color: "#657447",
     },
+
     {
         position: [30, 0, -18],
         rotation: 0,
         color: "#956844",
     },
+
 ];
 
 const CRATES = [
+
     [-20, 0, -30],
+
     [-17, 0, -34],
+
     [20, 0, 30],
+
     [17, 0, 34],
+
     [-35, 0, 22],
+
     [35, 0, -22],
+
     [-50, 0, 10],
+
     [50, 0, -10],
+
 ];
 
 const BARRICADES = [
-    { position: [-12, 0, -14], rotation: 0 },
-    { position: [12, 0, 14], rotation: 0 },
-    { position: [-14, 0, 12], rotation: Math.PI / 2 },
-    { position: [14, 0, -12], rotation: Math.PI / 2 },
-    { position: [-45, 0, -12], rotation: 0 },
-    { position: [45, 0, 12], rotation: 0 },
+
+    {
+        position: [-12, 0, -14],
+        rotation: 0,
+    },
+
+    {
+        position: [12, 0, 14],
+        rotation: 0,
+    },
+
+    {
+        position: [-14, 0, 12],
+        rotation: Math.PI / 2,
+    },
+
+    {
+        position: [14, 0, -12],
+        rotation: Math.PI / 2,
+    },
+
+    {
+        position: [-45, 0, -12],
+        rotation: 0,
+    },
+
+    {
+        position: [45, 0, 12],
+        rotation: 0,
+    },
+
 ];
 
 const ROCKS = [
+
     [-58, 0, -55],
+
     [-55, 0, 55],
+
     [58, 0, 55],
+
     [55, 0, -55],
+
     [-30, 0, 55],
+
     [30, 0, -55],
+
     [-58, 0, 22],
+
     [58, 0, -22],
+
     [-22, 0, -50],
+
     [22, 0, 50],
+
 ];
 
 const CACTUSES = [
+
     [-62, 0, -35],
+
     [-62, 0, 35],
+
     [62, 0, -35],
+
     [62, 0, 35],
+
     [-35, 0, -62],
+
     [35, 0, -62],
+
     [-35, 0, 62],
+
     [35, 0, 62],
+
 ];
 
 // ==========================================
@@ -744,7 +1103,15 @@ const CACTUSES = [
 // ==========================================
 
 export default function DesertMap() {
+
+    const halfSize = DESERT_CONFIG.halfSize;
+
+    const roadWidth = DESERT_CONFIG.roadWidth;
+
+    const roadLength = DESERT_CONFIG.roadLength;
+
     return (
+
         <group name="villageCollisionMap">
 
             {/* Desert sand ground */}
@@ -755,102 +1122,138 @@ export default function DesertMap() {
 
             <Road
                 position={[0, 0.02, 0]}
-                size={[10, 140]}
+                size={[
+                    roadWidth,
+                    roadLength,
+                ]}
             />
 
             {/* Main horizontal road */}
 
             <Road
                 position={[0, 0.03, 0]}
-                size={[140, 10]}
+                size={[
+                    roadLength,
+                    roadWidth,
+                ]}
             />
 
             {/* Four boundary walls */}
 
             <BoundaryWall
-                position={[0, 0, -70]}
+                position={[
+                    0,
+                    0,
+                    -halfSize,
+                ]}
             />
 
             <BoundaryWall
-                position={[0, 0, 70]}
+                position={[
+                    0,
+                    0,
+                    halfSize,
+                ]}
             />
 
             <BoundaryWall
-                position={[-70, 0, 0]}
+                position={[
+                    -halfSize,
+                    0,
+                    0,
+                ]}
                 rotation={Math.PI / 2}
             />
 
             <BoundaryWall
-                position={[70, 0, 0]}
+                position={[
+                    halfSize,
+                    0,
+                    0,
+                ]}
                 rotation={Math.PI / 2}
             />
 
             {/* Military bunkers */}
 
             {BUNKERS.map((item, index) => (
+
                 <Bunker
                     key={`bunker-${index}`}
                     {...item}
                 />
+
             ))}
 
             {/* Military tents */}
 
             {TENTS.map((item, index) => (
+
                 <MilitaryTent
                     key={`tent-${index}`}
                     {...item}
                 />
+
             ))}
 
             {/* Shipping containers */}
 
             {CONTAINERS.map((item, index) => (
+
                 <Container
                     key={`container-${index}`}
                     {...item}
                 />
+
             ))}
 
             {/* Supply crates */}
 
             {CRATES.map((position, index) => (
+
                 <SupplyCrate
                     key={`crate-${index}`}
                     position={position}
                     rotation={index * 0.3}
                     size={2 + (index % 3) * 0.3}
                 />
+
             ))}
 
             {/* Concrete barricades */}
 
             {BARRICADES.map((item, index) => (
+
                 <Barricade
                     key={`barricade-${index}`}
                     {...item}
                 />
+
             ))}
 
             {/* Desert rocks */}
 
             {ROCKS.map((position, index) => (
+
                 <Rock
                     key={`rock-${index}`}
                     position={position}
                     size={1.5 + (index % 3) * 0.6}
                     rotation={index * 0.8}
                 />
+
             ))}
 
             {/* Cactus plants */}
 
             {CACTUSES.map((position, index) => (
+
                 <Cactus
                     key={`cactus-${index}`}
                     position={position}
                     size={3 + (index % 3) * 0.5}
                 />
+
             ))}
 
         </group>
